@@ -1280,20 +1280,122 @@ class DealFormView(QWidget):
         except Exception as e: self.logger.error(f"Error populating from draft: {e}", exc_info=True); QMessageBox.critical(self, "Populate Error", f"Error populating form:\n{e}")
 
     def generate_csv_action(self):
-        self.logger.info(f"Starting CSV generation for {self.module_name}...")
-        if not self.validate_form_for_csv(): self._show_status_message("CSV Gen cancelled: Validation failed.", 3000); return False
-        csv_data = self.build_csv_data()
-        if not csv_data or len(csv_data.splitlines()) < 2: QMessageBox.warning(self, "CSV Export Error", "No data to export."); return False
-        return self._save_as_local_csv(csv_data)
+        self.logger.info(f"Starting data export to SharePoint Excel for {self.module_name}...")
+        if not self.validate_form_for_csv():
+            self._show_status_message("Export cancelled: Form validation failed.", 3000)
+            return False
 
-    def build_csv_data(self) -> str:
+        try:
+            deal_data_for_excel = []
+            timestamp_now = datetime.now()
+            
+            customer_name = self.customer_name.text().strip()
+            salesperson = self.salesperson.text().strip()
+            paid_status_text = "YES" if self.paid_checkbox.isChecked() else "NO"
+            deal_status_text = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
+            deal_notes_text = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ')
+            unique_deal_id = str(uuid.uuid4())
+
+            # IMPORTANT: The keys here MUST match column headers in 'OngoingAMS.xlsx' -> 'App' sheet.
+            # Using headers from the original build_csv_data method as a placeholder.
+            # This structure will likely need adjustment to match the target Excel sheet.
+            base_deal_row = {
+                'Payment': paid_status_text,
+                'CustomerName': customer_name,
+                'Equipment': "; ".join([self.equipment_list.item(i).text() for i in range(self.equipment_list.count())]),
+                'Stock Number': "", # Placeholder - needs logic if a primary stock# is required
+                'Amount': "",      # Placeholder - needs logic if a primary amount is required
+                'Trade': "; ".join([self.trade_list.item(i).text() for i in range(self.trade_list.count())]),
+                'Attached to stk#': "", 
+                'Trade STK#': "",       
+                'Amount2': "",           
+                'Salesperson': salesperson,
+                'Email Date': timestamp_now.strftime("%Y-%m-%d"),
+                'Status': deal_status_text,
+                'Timestamp': timestamp_now.strftime("%Y-%m-%d %H:%M:%S"),
+                'UniqueID': unique_deal_id,
+                'DealNotes': deal_notes_text
+            }
+            deal_data_for_excel.append(base_deal_row)
+
+            if not deal_data_for_excel:
+                QMessageBox.warning(self, "Export Error", "No data prepared for export.")
+                return False
+
+            sp_excel_manager = None
+            if self.sharepoint_manager_enhanced and hasattr(self.sharepoint_manager_enhanced, 'original_manager'):
+                sp_excel_manager = self.sharepoint_manager_enhanced.original_manager
+            elif self.sharepoint_manager_original_ref:
+                sp_excel_manager = self.sharepoint_manager_original_ref
+
+            if sp_excel_manager and hasattr(sp_excel_manager, 'update_excel_data'):
+                self.logger.info("Attempting to export data to SharePoint Excel, sheet 'App'.")
+                # This assumes SharePointExcelManager is configured for "OngoingAMS.xlsx"
+                # or can be dynamically targeted if its 'update_excel_data' supports it.
+                success = sp_excel_manager.update_excel_data(
+                    new_data=deal_data_for_excel, 
+                    target_sheet_name_for_append="App"
+                )
+                if success:
+                    self._show_status_message("Successfully exported deal to OngoingAMS.xlsx (Sheet: App).", 5000)
+                    self.logger.info("Deal data exported to SharePoint Excel.")
+                    return True
+                else:
+                    self._show_status_message("Failed to export deal to SharePoint Excel. Check logs.", 5000)
+                    self.logger.error("SharePointManager.update_excel_data returned False for OngoingAMS.xlsx.")
+                    return False
+            else:
+                self.logger.error("SharePointExcelManager or its update_excel_data method not available.")
+                # Fallback to local CSV save if SharePoint export is unavailable or fails.
+                # The original request for generate_csv_action did not have a local save fallback,
+                # but it's good practice if the SharePoint route is the primary and might fail.
+                # For now, adhering to the provided code which doesn't explicitly call _save_as_local_csv here.
+                # However, the user's provided code *does* include a fallback:
+                csv_data_str = self.build_csv_data() # This method needs to exist or be adapted
+                self._save_as_local_csv(csv_data_str) # Fallback
+                self._show_status_message("Export to SharePoint failed. Saved locally as CSV instead.", 5000)
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error exporting data to SharePoint Excel: {e}", exc_info=True)
+            self._show_status_message(f"Error exporting data: {e}", 5000)
+            return False
+
+    def build_csv_data(self) -> str: # Added this method based on its call in generate_csv_action fallback
         csv_buffer = io.StringIO(); writer = csv.writer(csv_buffer, quoting=csv.QUOTE_ALL) 
         headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount', 'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2', 'Salesperson', 'Email Date', 'Status', 'Timestamp', 'UniqueID', 'DealNotes']
         writer.writerow(headers)
         paid_status = "YES" if self.paid_checkbox.isChecked() else "NO"
         deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
         deal_notes = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ') 
-        writer.writerow([paid_status, self.customer_name.text().strip(), "", "", "", "", "", "", "", self.salesperson.text().strip(), datetime.now().strftime("%Y-%m-%d"), deal_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), str(uuid.uuid4()), deal_notes])
+        
+        # Simplified row for the example; actual data extraction might be more complex
+        # This part should align with how base_deal_row is constructed in generate_csv_action
+        customer_name = self.customer_name.text().strip()
+        salesperson = self.salesperson.text().strip()
+        equipment_str = "; ".join([self.equipment_list.item(i).text() for i in range(self.equipment_list.count())])
+        trade_str = "; ".join([self.trade_list.item(i).text() for i in range(self.trade_list.count())])
+        timestamp_now = datetime.now()
+        unique_deal_id = str(uuid.uuid4())
+
+        row_data = [
+            paid_status,
+            customer_name,
+            equipment_str,
+            "", # Stock Number placeholder
+            "", # Amount placeholder
+            trade_str,
+            "", # Attached to stk# placeholder
+            "", # Trade STK# placeholder
+            "", # Amount2 placeholder
+            salesperson,
+            timestamp_now.strftime("%Y-%m-%d"),
+            deal_status,
+            timestamp_now.strftime("%Y-%m-%d %H:%M:%S"),
+            unique_deal_id,
+            deal_notes
+        ]
+        writer.writerow(row_data)
         return csv_buffer.getvalue()
 
     def _save_as_local_csv(self, csv_data_string: str, default_dir: Optional[str] = None) -> bool:
@@ -1312,17 +1414,160 @@ class DealFormView(QWidget):
         except Exception as e: self.logger.error(f"Error saving CSV locally: {e}", exc_info=True); QMessageBox.critical(self, "Save Error", f"Could not save CSV:\n{e}"); return False
 
     def generate_email(self):
-        self.logger.info("Email generation placeholder"); self._show_status_message("Email generation not yet implemented", 3000); return True
+        self.logger.info(f"Starting email generation for {self.module_name}...")
+        if not self.validate_form_for_csv(): # Basic validation, can be enhanced
+            self._show_status_message("Email Gen cancelled: Validation failed.", 3000)
+            return False
+
+        try:
+            customer_name = self.customer_name.text().strip()
+            salesperson_name = self.salesperson.text().strip()
+            
+            equipment_items = [self.equipment_list.item(i).text() for i in range(self.equipment_list.count())]
+            trade_items = [self.trade_list.item(i).text() for i in range(self.trade_list.count())]
+            part_items = [self.part_list.item(i).text() for i in range(self.part_list.count())]
+            deal_notes = self.deal_notes_textedit.toPlainText().strip()
+
+            # Construct HTML Body
+            html_body = f"""
+            <html>
+              <head>
+                <style>
+                  body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                  h2 {{ color: #2E8B57; }}
+                  h3 {{ color: #333; }}
+                  ul {{ list-style-type: disc; margin-left: 20px; }}
+                  li {{ margin-bottom: 5px; }}
+                  .section {{ margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }}
+                  .notes {{ white-space: pre-wrap; }}
+                </style>
+              </head>
+              <body>
+                <h2>Deal Information: {customer_name}</h2>
+                
+                <div class='section'>
+                  <h3>Customer:</h3>
+                  <p>{customer_name}</p>
+                  <h3>Salesperson:</h3>
+                  <p>{salesperson_name}</p>
+                </div>
+
+                <div class='section'>
+                  <h3>Equipment:</h3>
+                  {'<ul><li>' + '</li><li>'.join(equipment_items) + '</li></ul>' if equipment_items else '<p>No equipment listed.</p>'}
+                </div>
+
+                <div class='section'>
+                  <h3>Trades:</h3>
+                  {'<ul><li>' + '</li><li>'.join(trade_items) + '</li></ul>' if trade_items else '<p>No trades listed.</p>'}
+                </div>
+
+                <div class='section'>
+                  <h3>Parts:</h3>
+                  {'<ul><li>' + '</li><li>'.join(part_items) + '</li></ul>' if part_items else '<p>No parts listed.</p>'}
+                </div>
+                
+                <div class='section'>
+                  <h3>Work Order & Deal Options:</h3>
+                  <p>Work Order Required: {'Yes' if self.work_order_required.isChecked() else 'No'}</p>
+                  <p>Charge To: {self.work_order_charge_to.text().strip()}</p>
+                  <p>Estimated Hours: {self.work_order_hours.text().strip()}</p>
+                  <p>Paid: {'Yes' if self.paid_checkbox.isChecked() else 'No'}</p>
+                </div>
+
+                <div class='section'>
+                  <h3>Deal Notes:</h3>
+                  <p class='notes'>{deal_notes if deal_notes else "No additional notes."}</p>
+                </div>
+                
+                <p><i>Generated by BRIDeal Application on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i></p>
+              </body>
+            </html>
+            """
+
+            default_recipient_email = self.config.get("DEFAULT_DEAL_EMAIL_RECIPIENT", "placeholder@example.com")
+            recipients = [default_recipient_email]
+            
+            salesperson_details = self.salesmen_data.get(salesperson_name)
+            if salesperson_details:
+                email_key = self._find_key_case_insensitive(salesperson_details, "Email")
+                if email_key and salesperson_details.get(email_key):
+                    recipients.append(salesperson_details[email_key])
+                    recipients = list(set(recipients)) # Remove duplicates
+
+            subject = f"Deal Information for {customer_name}"
+
+            sp_excel_manager = None # In your code, this is sp_excel_manager, but it's used for sending email
+            if self.sharepoint_manager_enhanced and hasattr(self.sharepoint_manager_enhanced, 'original_manager'):
+                # Assuming the original_manager might have send_html_email
+                sp_excel_manager = self.sharepoint_manager_enhanced.original_manager 
+            elif self.sharepoint_manager_original_ref:
+                sp_excel_manager = self.sharepoint_manager_original_ref
+
+            if sp_excel_manager and hasattr(sp_excel_manager, 'send_html_email'):
+                self.logger.info(f"Attempting to send email to: {', '.join(recipients)}")
+                email_sent = sp_excel_manager.send_html_email(recipients, subject, html_body)
+                if email_sent:
+                    self._show_status_message(f"Email generated and sent to {', '.join(recipients)}.", 5000)
+                    self.logger.info("Email successfully sent via SharePointManager.")
+                    return True
+                else:
+                    self._show_status_message("Failed to send email via SharePointManager. Check logs.", 5000)
+                    self.logger.error("SharePointManager.send_html_email returned False.")
+                    self._save_email_html_locally(html_body, customer_name) # Fallback
+                    return False
+            else:
+                self.logger.warning("SharePoint manager with send_html_email capability not available. Saving HTML locally.")
+                self._save_email_html_locally(html_body, customer_name)
+                self._show_status_message("Email sending not configured. HTML saved locally.", 5000)
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error generating email: {e}", exc_info=True)
+            self._show_status_message(f"Error generating email: {e}", 5000)
+            return False # Corrected from Falsedef to False
+
+    def _save_email_html_locally(self, html_content, customer_name_for_filename):
+        try:
+            sanitized_name = re.sub(r'[^\w\s-]', '', customer_name_for_filename).strip().replace(' ', '_')
+            default_filename = f"Email_Deal_{sanitized_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            email_dir = os.path.join(self._data_path, "generated_emails")
+            os.makedirs(email_dir, exist_ok=True)
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save Email HTML", os.path.join(email_dir, default_filename), "HTML Files (*.html)")
+            if file_path:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                self.logger.info(f"Email HTML saved locally: {file_path}")
+                self._show_status_message(f"Email HTML saved to {os.path.basename(file_path)}", 4000)
+        except Exception as e:
+            self.logger.error(f"Error saving email HTML locally: {e}", exc_info=True)
+            self._show_status_message("Error saving email HTML.", 4000)
 
     def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
         if not self.validate_form_for_csv(): self._show_status_message("Generate All cancelled: Validation failed.", 3000); return
-        csv_ok = self.generate_csv_action()
+        
+        # Determine if we are exporting to SharePoint or saving locally
+        # This logic depends on how you want to integrate the new generate_csv_action
+        # For now, let's assume generate_csv_action handles its own success/failure reporting
+        # and returns True on success, False on failure.
+        csv_ok = self.generate_csv_action() # This now tries SharePoint first, then local CSV
+        
         email_ok = False 
-        if csv_ok: email_ok = self.generate_email() 
-        else: self.logger.warning("CSV generation failed, skipping email.")
-        if csv_ok and email_ok: self._show_status_message("'Generate All': CSV and Email processes completed.", 5000)
-        elif csv_ok: self._show_status_message("'Generate All': CSV done. Check email status.", 4000)
+        if csv_ok: # Only proceed to email if CSV action was successful (either SP or local)
+            email_ok = self.generate_email() 
+        else:
+            self.logger.warning("CSV generation/export failed, skipping email.")
+            # generate_csv_action should have already shown a message.
+            # If not, you might want to add one here.
+
+        if csv_ok and email_ok:
+            # Both succeeded (CSV could be SP or local, Email could be sent or local HTML)
+            self._show_status_message("'Generate All': Processes completed. Check individual outcomes.", 6000)
+        elif csv_ok:
+            # CSV was ok (SP or local), but email had an issue (failed send, but might be saved locally)
+            self._show_status_message("'Generate All': CSV part done. Check email status/local save.", 5000)
+        # If csv_ok is False, generate_csv_action should have handled the message.
 
     def reset_form_no_confirm(self): 
         self.customer_name.clear(); self.salesperson.clear()
