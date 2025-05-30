@@ -219,6 +219,11 @@ class CsvEditorBase(BaseViewModule):
         self.table.cellChanged.connect(self.on_cell_changed)
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
         header = self.table.horizontalHeader()
+        # MODIFICATION START
+        v_header = self.table.verticalHeader()
+        v_header.setDefaultSectionSize(30) # Adjust default row height
+        v_header.setStyleSheet("QHeaderView::section { padding-left: 5px; padding-right: 5px; }") # Add padding to row numbers
+        # MODIFICATION END
         header.setStretchLastSection(True)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         main_layout.addWidget(self.table)
