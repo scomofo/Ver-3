@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QWidget,
                              QLabel, QStackedWidget, QListWidget, QHBoxLayout,
                              QMessageBox, QListWidgetItem, QSizePolicy, QListView, QDialog, QSplashScreen)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QThreadPool, QTimer
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtGui import QFont, QIcon, QPixmap, QScreen
 
 # Core application components (modernized)
 from app.core.config import get_config, BRIDealConfig
@@ -150,7 +150,11 @@ class MainWindow(QMainWindow):
        try:
            # Window configuration
            self.setWindowTitle(f"{self.config.app_name} - v{self.config.app_version}")
-           self.setGeometry(100, 100, self.config.window_width, self.config.window_height)
+           screen = QApplication.primaryScreen()
+           available_geometry = screen.availableGeometry()
+           width = int(available_geometry.width() * 0.7)
+           height = int(available_geometry.height() * 0.7)
+           self.setGeometry(100, 100, width, height)
            
            # Initialize theme manager
            self.theme_manager = ThemeManager(
