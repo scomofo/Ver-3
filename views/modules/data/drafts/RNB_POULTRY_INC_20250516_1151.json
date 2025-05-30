@@ -1,0 +1,31 @@
+{
+  "timestamp": "2025-05-16T11:51:08.359733",
+  "customer_name": "RNB POULTRY INC",
+  "salesperson": "Scott Morley",
+  "equipment_product_name_text": "",
+  "equipment_product_code_text": "",
+  "equipment_manual_stock_text": "",
+  "equipment_order_number_text": "",
+  "equipment_price_text": "0.00",
+  "trade_name_text": "",
+  "trade_stock_text": "",
+  "trade_amount_text": "0.00",
+  "part_quantity_value": 1,
+  "part_number_text": "",
+  "part_name_text": "",
+  "part_location_text": "",
+  "part_charge_to_text": "247416",
+  "equipment_items_textlist": [
+    "4640 Universal Display (070FPC) | STK#247416 | $8750.00",
+    "Starfire 3000 Receiver (0907PC) | STK#c018232 | $4108.00",
+    "John Deere AutoTrac Universal 300 (2250PC) | STK#311824 | $2665.00"
+  ],
+  "trade_items_textlist": [],
+  "part_items_textlist": [],
+  "work_order_required": true,
+  "work_order_charge_to": "247416",
+  "work_order_hours": "2",
+  "multi_line_csv": false,
+  "paid": false,
+  "notes": ""
+}
