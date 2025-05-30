@@ -286,100 +286,7 @@ class DealFormView(QWidget):
             
         self.logger.info(f"Initiating download for '{data_type}' via standardized download method.")
         return self.sharepoint_manager_enhanced.download_file_content(sharepoint_url)
-
-    def reload_data_with_graph_api(self):
-        self.logger.info("Reloading all data using standardized Graph API (Drive ID) methods...")
-        reload_summary = {} 
-        data_types_to_reload = ['customers', 'salesmen', 'products', 'parts']
-        any_successful_reload = False
-
-        for data_type in data_types_to_reload:
-            self.logger.info(f"--- Reloading '{data_type}' from Graph API ---")
-            content = self.download_csv_via_graph_api(data_type) 
-            
-            if content:
-                try:
-                    # Process content
-                    first_line_end = content.find('\n')
-                    header_line = content[:first_line_end] if first_line_end != -1 else content
-                    content_after_header = content[first_line_end + 1:] if first_line_end != -1 else ""
-                    
-                    if not header_line.strip():
-                        raise ValueError("Downloaded content has no header line.")
-                    
-                    header_reader = csv.reader(io.StringIO(header_line))
-                    raw_headers = next(header_reader, None)
-                    if not raw_headers:
-                        raise ValueError("Could not parse headers from downloaded content.")
-
-                    cleaned_headers = [header.lstrip('\ufeff').strip() for header in raw_headers]
-                    csv_file_like = io.StringIO(content_after_header)
-                    reader = csv.DictReader(csv_file_like, fieldnames=cleaned_headers)
-                    
-                    loader_map = {
-                        'customers': self._load_customers_data,
-                        'salesmen': self._load_salesmen_data,
-                        'products': self._load_equipment_data,
-                        'parts': self._load_parts_data
-                    }
-                    data_collection_map = {
-                        'customers': self.customers_data,
-                        'salesmen': self.salesmen_data,
-                        'products': self.equipment_products_data,
-                        'parts': self.parts_data
-                    }
-                    
-                    data_collection_map[data_type].clear()
-                    loader_map[data_type](reader, cleaned_headers)
-                    loaded_count = len(data_collection_map[data_type])
-
-                    reload_summary[data_type] = {'status': 'success', 'count': loaded_count}
-                    any_successful_reload = True
-                    self.logger.info(f"  Successfully processed {loaded_count} '{data_type}' records.")
-                    
-                    # Backup to local file
-                    local_file_name = self.config.get(f'{data_type.upper()}_CSV_FILE', f'{data_type}.csv')
-                    local_path = os.path.join(self._data_path, local_file_name)
-                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                    with open(local_path, 'w', encoding='utf-8', newline='') as f:
-                        f.write(content) 
-                    self.logger.info(f"  Saved '{data_type}' backup to: {local_path}")
-
-                except Exception as e:
-                    self.logger.error(f"  Error processing/loading '{data_type}' content: {e}", exc_info=True)
-                    reload_summary[data_type] = {'status': 'error', 'message': str(e)}
-            else:
-                self.logger.warning(f"  No content downloaded for '{data_type}', skipping reload.")
-                reload_summary[data_type] = {'status': 'no_content'}
         
-        if any_successful_reload:
-            self._populate_autocompleters()
-            msg = "✅ Data reload from SharePoint successful."
-            self._show_status_message(msg, 7000)
-            self.logger.info(msg)
-        else:
-            msg = "⚠️ SharePoint data reload failed for all types."
-            self._show_status_message(msg, 7000)
-            self.logger.warning(msg)
-        
-        return reload_summary
-        
-    def debug_sharepoint_graph_api(self):
-        # This method can be simplified or removed as the core logic is now unified.
-        # For now, it can test the manager's ability to get the drive ID.
-        self.logger.info("=== SHAREPOINT DEBUG SEQUENCE ===")
-        if not self.sharepoint_manager_enhanced:
-            self.logger.error("Enhanced SharePoint manager not available.")
-            return
-
-        drive_id = self.sharepoint_manager_enhanced._get_sharepoint_drive_id()
-        if drive_id:
-            self.logger.info(f"✅ SUCCESS: Manager successfully fetched Drive ID: {drive_id[:10]}...")
-            self._show_status_message("✅ SharePoint connection appears OK.", 5000)
-        else:
-            self.logger.error("❌ FAILED: Manager could not fetch Drive ID.")
-            self._show_status_message("❌ SharePoint connection test failed. Check logs.", 7000)
-
     def _initialize_enhanced_sharepoint_manager(self, original_sharepoint_manager):
         try:
             self.sharepoint_manager_enhanced = EnhancedSharePointManager(
@@ -395,31 +302,86 @@ class DealFormView(QWidget):
     def get_icon_name(self): 
         return "new_deal_icon.png"
 
-    def test_sharepoint_manually(self):
-        self.logger.info("=== Manual SharePoint Test (Using Standardized Download Logic) ===")
-        if not self.sharepoint_manager_enhanced:
-            self.logger.error("Enhanced SharePoint manager not available for manual test.")
-            return
-
-        test_url = self.sharepoint_direct_csv_urls.get('products')
-        self.logger.info(f"Testing download for products CSV: {test_url}")
-        content = self.sharepoint_manager_enhanced.download_file_content(test_url)
-        if content:
-            self.logger.info(f"✅ Success! Downloaded {len(content)} characters.")
-        else:
-            self.logger.error("❌ Failed to download content for products CSV.")
-
     def load_initial_data(self):
-        self.logger.info("Loading initial data from SharePoint...")
+        self.logger.info("Loading initial data directly via Graph API...")
         self.customers_data.clear()
         self.salesmen_data.clear()
         self.equipment_products_data.clear()
         self.parts_data.clear()
 
-        # The reload method now uses the standardized download logic
-        self.reload_data_with_graph_api()
-        
-        self.logger.info("Finished initial data loading sequence.")
+        reload_summary = {}
+        data_types_to_reload = ['customers', 'salesmen', 'products', 'parts']
+        any_successful_reload = False
+
+        for data_type in data_types_to_reload:
+            self.logger.info(f"--- Loading '{data_type}' from Graph API ---")
+            content = self.download_csv_via_graph_api(data_type)
+
+            if content:
+                try:
+                    # Process content
+                    first_line_end = content.find('\n') # Use escaped newline
+                    header_line = content[:first_line_end] if first_line_end != -1 else content
+                    content_after_header = content[first_line_end + 1:] if first_line_end != -1 else ""
+
+                    if not header_line.strip():
+                        raise ValueError(f"Downloaded content for {data_type} has no header line.")
+
+                    header_reader = csv.reader(io.StringIO(header_line))
+                    raw_headers = next(header_reader, None)
+                    if not raw_headers:
+                        raise ValueError(f"Could not parse headers for {data_type} from downloaded content.")
+
+                    cleaned_headers = [header.lstrip('\ufeff').strip() for header in raw_headers] # Use escaped unicode char
+                    csv_file_like = io.StringIO(content_after_header)
+                    reader = csv.DictReader(csv_file_like, fieldnames=cleaned_headers)
+
+                    loader_map = {
+                        'customers': self._load_customers_data,
+                        'salesmen': self._load_salesmen_data,
+                        'products': self._load_equipment_data,
+                        'parts': self._load_parts_data
+                    }
+                    data_collection_map = {
+                        'customers': self.customers_data,
+                        'salesmen': self.salesmen_data,
+                        'products': self.equipment_products_data,
+                        'parts': self.parts_data
+                    }
+
+                    data_collection_map[data_type].clear()
+                    loader_map[data_type](reader, cleaned_headers)
+                    loaded_count = len(data_collection_map[data_type])
+
+                    reload_summary[data_type] = {'status': 'success', 'count': loaded_count}
+                    any_successful_reload = True
+                    self.logger.info(f"  Successfully processed {loaded_count} '{data_type}' records.")
+
+                    local_file_name = self.config.get(f'{data_type.upper()}_CSV_FILE', f'{data_type}.csv')
+                    local_path = os.path.join(self._data_path, local_file_name)
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    with open(local_path, 'w', encoding='utf-8', newline='') as f:
+                        f.write(content)
+                    self.logger.info(f"  Saved '{data_type}' backup to: {local_path}")
+
+                except Exception as e:
+                    self.logger.error(f"  Error processing/loading '{data_type}' content: {e}", exc_info=True)
+                    reload_summary[data_type] = {'status': 'error', 'message': str(e)}
+            else:
+                self.logger.warning(f"  No content downloaded for '{data_type}', skipping load.")
+                reload_summary[data_type] = {'status': 'no_content'}
+
+        if any_successful_reload:
+            self._populate_autocompleters()
+            msg = "✅ Data load from SharePoint successful."
+            self._show_status_message(msg, 7000)
+            self.logger.info(msg)
+        else:
+            msg = "⚠️ SharePoint data load failed for all types."
+            self._show_status_message(msg, 7000)
+            self.logger.warning(msg)
+
+        self.logger.info("Finished initial data loading sequence using inlined logic.")
 
     # All _load_*_data and other UI methods remain the same
     # ... (rest of the file from the previous version)
@@ -718,18 +680,6 @@ class DealFormView(QWidget):
         self.reset_btn.setObjectName("reset_btn") 
         self.reset_btn.clicked.connect(self.reset_form)
         main_actions_layout.addWidget(self.reset_btn)
-        self.debug_sp_original_btn = QPushButton("Test SP (Orig)")
-        self.debug_sp_original_btn.setToolTip("Test SharePoint connection using original/enhanced wrapper logic.")
-        self.debug_sp_original_btn.clicked.connect(self.test_sharepoint_manually) 
-        main_actions_layout.addWidget(self.debug_sp_original_btn)
-        self.debug_sp_graph_btn = QPushButton("Test SP (Graph)")
-        self.debug_sp_graph_btn.setToolTip("Test SharePoint connection using new Graph API methods.")
-        self.debug_sp_graph_btn.clicked.connect(self.debug_sharepoint_graph_api) 
-        main_actions_layout.addWidget(self.debug_sp_graph_btn)
-        self.reload_graph_btn = QPushButton("Reload (Graph)")
-        self.reload_graph_btn.setToolTip("Reload all data using new Graph API methods.")
-        self.reload_graph_btn.clicked.connect(self.reload_data_with_graph_api)
-        main_actions_layout.addWidget(self.reload_graph_btn)
         content_layout.addWidget(actions_groupbox)
         content_layout.addStretch(1) 
         scroll_area.setWidget(content_container_widget)
