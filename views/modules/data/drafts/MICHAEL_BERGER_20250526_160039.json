@@ -1,0 +1,18 @@
+{
+    "timestamp": "2025-05-26T16:00:41.496661",
+    "customer_name": "MICHAEL BERGER",
+    "salesperson": "Darcy Gunderson",
+    "equipment": [
+        "\"4240 Autotrac\" STK#c018145 $4,300.00"
+    ],
+    "trades": [],
+    "parts": [],
+    "work_order_required": false,
+    "work_order_charge_to": "",
+    "work_order_hours": "",
+    "multi_line_csv": false,
+    "paid": false,
+    "part_location_index": 0,
+    "last_charge_to": "",
+    "deal_notes": ""
+}
