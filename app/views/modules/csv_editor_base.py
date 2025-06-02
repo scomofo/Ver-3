@@ -212,8 +212,14 @@ class CsvEditorBase(BaseViewModule):
             QTableWidget::item { padding: 10px; border-bottom: 1px solid #e9ecef; font-size: 10pt; }
             QTableWidget::item:selected { background-color: #007bff; color: white; }
             QTableWidget::item:hover { background-color: #e3f2fd; }
-            QHeaderView::section { background-color: #e9ecef; padding: 12px; border: 1px solid #dee2e6; font-weight: bold; font-size: 11pt; color: #495057; }
+            QHeaderView::section { background-color: #e9ecef; padding: 12px; border: 1px solid #dee2e6; font-weight: bold; font-size: 11pt; color: #495057; } /* Horizontal header */
             QHeaderView::section:hover { background-color: #dee2e6; }
+            QTableView::verticalHeader::section { /* Vertical header */
+                font-size: 10pt; 
+                padding: 4px; 
+                background-color: #e9ecef; 
+                border-bottom: 1px solid #dee2e6; 
+            }
         """)
         self.table.setSortingEnabled(True)
         self.table.cellChanged.connect(self.on_cell_changed)
@@ -475,21 +481,63 @@ class CsvEditorBase(BaseViewModule):
         self.progress_bar.setVisible(False)
 
     def load_csv_data(self):
-        try:
-            self._update_status("Loading CSV data...")
-            if os.path.exists(self.csv_file_path):
-                self.data_df = pd.read_csv(self.csv_file_path, dtype=str).fillna('') 
-                self.original_data = self.data_df.copy()
-                self._populate_table()
-                self.is_modified = False
-                self._update_modified_indicator(); self._update_file_info()
-                self._update_status(f"Loaded {len(self.data_df)} rows from local file")
-                self.logger.info(f"CSV data loaded: {len(self.data_df)} rows from {self.csv_file_path}")
-            else:
-                self._create_empty_csv(); self.load_csv_data()
-        except Exception as e:
-            self.logger.error(f"Error loading CSV data: {e}", exc_info=True)
-            self._show_error(f"Failed to load CSV file:\n{str(e)}"); self._update_status("Error loading data")
+        self._update_status("Loading CSV data...")
+        sharepoint_loaded_successfully = False
+
+        if self.sharepoint_file_url and (self.sharepoint_manager or self.enhanced_sharepoint_manager):
+            self.logger.info(f"Attempting to load data from SharePoint: {self.sharepoint_file_url}")
+            try:
+                # self.progress_bar.setVisible(True) # Optional: Show progress for SharePoint fetch
+                # self.progress_bar.setRange(0,0)
+                df = self._fetch_from_sharepoint()
+                if df is not None and not df.empty:
+                    self.data_df = df.fillna('') # Ensure NaN are empty strings
+                    self.original_data = self.data_df.copy()
+                    self._populate_table()
+                    self.data_df.to_csv(self.csv_file_path, index=False)
+                    self.is_modified = False
+                    self._update_modified_indicator()
+                    self._update_file_info()
+                    self._update_status(f"Loaded {len(self.data_df)} rows from SharePoint")
+                    self.logger.info(f"Successfully loaded {len(self.data_df)} rows from SharePoint for {self.csv_file_path}")
+                    sharepoint_loaded_successfully = True
+                else:
+                    self.logger.warning("Received empty or None DataFrame from SharePoint.")
+            except Exception as sp_error:
+                self.logger.error(f"Failed to load data from SharePoint: {sp_error}", exc_info=True)
+                self._update_status("Failed to load from SharePoint. Trying local file.")
+                # Optionally show a non-critical error message to user about SharePoint failure
+                # self._show_error(f"Could not load from SharePoint: {str(sp_error)[:100]}...\nWill try local file.")
+            # finally:
+                # self.progress_bar.setVisible(False) # Hide progress bar if it was shown
+
+        if not sharepoint_loaded_successfully:
+            self.logger.info("SharePoint load failed or not configured. Attempting to load from local file.")
+            try:
+                if os.path.exists(self.csv_file_path):
+                    self.data_df = pd.read_csv(self.csv_file_path, dtype=str).fillna('')
+                    self.original_data = self.data_df.copy()
+                    self._populate_table()
+                    self.is_modified = False # Should be false after a fresh load
+                    self._update_modified_indicator()
+                    self._update_file_info()
+                    status_msg = f"Loaded {len(self.data_df)} rows from local file"
+                    if self.sharepoint_file_url: # If SP was an option, mention it
+                        status_msg = f"SharePoint load failed. {status_msg}"
+                    self._update_status(status_msg)
+                    self.logger.info(f"CSV data loaded: {len(self.data_df)} rows from {self.csv_file_path}")
+                else:
+                    status_msg = "Local file not found."
+                    if self.sharepoint_file_url:
+                        status_msg = f"SharePoint load failed. {status_msg}"
+                    self.logger.warning(f"{status_msg} Creating new empty file: {self.csv_file_path}")
+                    self._update_status(f"{status_msg} Creating new file.")
+                    self._create_empty_csv()
+                    self.load_csv_data() # Recursively call to load the newly created empty file
+            except Exception as e:
+                self.logger.error(f"Error loading CSV data from local file: {e}", exc_info=True)
+                self._show_error(f"Failed to load CSV file:\n{str(e)}")
+                self._update_status("Error loading local data")
 
     def _create_empty_csv(self):
         default_headers = self._get_default_headers()
