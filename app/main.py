@@ -616,17 +616,17 @@ class MainWindow(QMainWindow):
            self.logger.error(f"Failed to create InvoiceModuleView: {e}", exc_info=True)
            return None
 
-    def _create_home_page_dashboard_view(self) -> Optional[HomePageDashboardView]:
-        """Create home page dashboard view with error handling"""
-        try:
-            return HomePageDashboardView(
-                config=self.config,
-                main_window=self,
-                logger_instance=logging.getLogger("HomePageDashboardViewLogger")
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to create HomePageDashboardView: {e}", exc_info=True)
-            return None
+   def _create_home_page_dashboard_view(self) -> Optional[HomePageDashboardView]:
+       """Create home page dashboard view with error handling"""
+       try:
+           return HomePageDashboardView(
+               config=self.config,
+               main_window=self,
+               logger_instance=logging.getLogger("HomePageDashboardViewLogger")
+           )
+       except Exception as e:
+           self.logger.error(f"Failed to create HomePageDashboardView: {e}", exc_info=True)
+           return None
 
    def _set_default_view(self):
        """Set the default view with error handling"""
