@@ -1053,7 +1053,7 @@ class DealFormView(QWidget):
         if not new_manual_stock: QMessageBox.warning(self, "Input Error", "Stock # cannot be empty."); return 
         new_order_number, ok = QInputDialog.getText(self, "Edit Equipment", "Order # (Optional):", text=order_number); 
         if not ok: return; new_order_number = new_order_number.strip()
-        new_price_input_str, ok = QInputDialog.getText(self, "Edit Equipment", "Price:", text=new_price_from_data_str.replace('$', '')) 
+        new_price_input_str, ok = QInputDialog.getText(self, "Edit Equipment", "Price:", text=new_price_from_data_str.replace(', '')) 
         if not ok: return
         try: new_price_formatted_display = f"${float(new_price_input_str.replace(',', '')):,.2f}"
         except ValueError: new_price_formatted_display = "$0.00"; self.logger.warning(f"Invalid price input '{new_price_input_str}', defaulting to $0.00")
@@ -1085,7 +1085,7 @@ class DealFormView(QWidget):
         if not new_name: QMessageBox.warning(self, "Input Error", "Trade name cannot be empty."); return
         new_stock, ok = QInputDialog.getText(self, "Edit Trade", "Stock # (Optional):", text=stock); 
         if not ok: return; new_stock = new_stock.strip()
-        new_amount_input_str, ok = QInputDialog.getText(self, "Edit Trade", "Amount:", text=amount_numerical_str.replace('$', ''))
+        new_amount_input_str, ok = QInputDialog.getText(self, "Edit Trade", "Amount:", text=amount_numerical_str.replace(', ''))
         if not ok: return
         try: new_amount_formatted_display = f"${float(new_amount_input_str.replace(',', '')):,.2f}"
         except ValueError: new_amount_formatted_display = "$0.00"; self.logger.warning(f"Invalid trade amount '{new_amount_input_str}', defaulting.")
@@ -1096,7 +1096,7 @@ class DealFormView(QWidget):
     def edit_part_item(self, item: QListWidgetItem):
         if not item: return
         current_text = item.text().strip(); self.logger.debug(f"Attempting to edit part item: {current_text}")
-        pattern = r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$' 
+        pattern = r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))? 
         match = re.match(pattern, current_text)
         qty_str, number, name, location, charge_to = "1", "", "", "", ""
         if match:
@@ -1261,8 +1261,223 @@ class DealFormView(QWidget):
             return True
         except Exception as e: self.logger.error(f"Error saving CSV locally: {e}", exc_info=True); QMessageBox.critical(self, "Save Error", f"Could not save CSV:\n{e}"); return False
 
+    def _parse_equipment_item_for_email(self, item_text: str) -> Optional[Dict[str, str]]:
+        # Parses equipment item text like:
+        # '"BIG MOWER 3000" (Code: BM3K) STK#12345 Order#PO789 $5000.00'
+        # OR '"SMALL TRIMMER" STK#ST678 $250.99'
+        # Returns a dict: {'name': "Name", 'stock': "Stock", 'price': "Price", 'code': "Code", 'order': "Order"} or None
+        self.logger.debug(f"Parsing equipment item for email: {item_text}")
+        patterns = [
+            re.compile(r'"(.*?)"\s+\(Code:\s*(.*?)\)\s+STK#(.*?)\s+Order#(.*?)\s+\$(.*)'), # With Code and Order
+            re.compile(r'"(.*?)"\s+STK#(.*?)\s+Order#(.*?)\s+\$(.*)'),                  # No Code, with Order
+            re.compile(r'"(.*?)"\s+\(Code:\s*(.*?)\)\s+STK#(.*?)\s+\$(.*)'),              # With Code, no Order
+            re.compile(r'"(.*?)"\s+STK#(.*?)\s+\$(.*)')                                  # No Code, no Order
+        ]
+        
+        parsed_data = {}
+        for i, pattern in enumerate(patterns):
+            match = pattern.match(item_text)
+            if match:
+                groups = match.groups()
+                if i == 0: # Name, Code, Stock, Order, Price
+                    parsed_data = {'name': groups[0].strip(), 'code': groups[1].strip(), 'stock': groups[2].strip(), 'order': groups[3].strip(), 'price': groups[4].strip().replace(',', '')}
+                elif i == 1: # Name, Stock, Order, Price
+                    parsed_data = {'name': groups[0].strip(), 'stock': groups[1].strip(), 'order': groups[2].strip(), 'price': groups[3].strip().replace(',', '')}
+                elif i == 2: # Name, Code, Stock, Price
+                    parsed_data = {'name': groups[0].strip(), 'code': groups[1].strip(), 'stock': groups[2].strip(), 'price': groups[3].strip().replace(',', '')}
+                elif i == 3: # Name, Stock, Price
+                    parsed_data = {'name': groups[0].strip(), 'stock': groups[1].strip(), 'price': groups[2].strip().replace(',', '')}
+                
+                # Ensure all expected keys are present
+                parsed_data.setdefault('code', '')
+                parsed_data.setdefault('order', '')
+                self.logger.debug(f"Parsed equipment: {parsed_data}")
+                return parsed_data
+                
+        self.logger.warning(f"Could not parse equipment item for email: {item_text} with available patterns.")
+        return None
+
+    def _parse_part_item_for_email(self, item_text: str) -> Optional[Dict[str, str]]:
+        # Parses part item text like:
+        # '2x PN123 - Super Filter | Loc: Camrose | Charge to: WO111'
+        # '1x - Special Bolt | Charge to: Customer'
+        # '3x PN789 - Washer'
+        # Returns a dict: {'qty': "Qty", 'number': "Number", 'name': "Name", 'location': "Location", 'charge_to': "ChargeTo"} or None
+        self.logger.debug(f"Parsing part item for email: {item_text}")
+        pattern = re.compile(
+            r'(\d+)\s*x\s*'  # Quantity (e.g., "2x ")
+            r'(.*?)\s*-\s*'    # Part Number (optional, e.g., "PN123 - ") or empty if no number
+            r'(.*?)'           # Part Name/Description (mandatory)
+            r'(?:\s*\|\s*Loc:\s*(.*?))?'  # Location (optional, e.g., " | Loc: Camrose")
+            r'(?:\s*\|\s*Charge to:\s*(.*?))?  # Charge To (optional, e.g., " | Charge to: WO111")
+        )
+        match = pattern.match(item_text)
+        if match:
+            groups = match.groups()
+            qty = groups[0].strip()
+            number = groups[1].strip() if groups[1] else ""
+            name = groups[2].strip() if groups[2] else ""
+            location = groups[3].strip() if groups[3] else ""
+            charge_to = groups[4].strip() if groups[4] else ""
+
+            if not name and not number:
+                 self.logger.warning(f"Part item parsing error: No name or number found in '{item_text}'")
+                 return None
+            if number in ["(P/N not specified)", "N/A"]: number = ""
+            if name in ["(Desc. not specified)", "N/A"]: name = ""
+
+            parsed_data = {
+                'qty': qty, 'number': number, 'name': name,
+                'location': location, 'charge_to': charge_to
+            }
+            self.logger.debug(f"Parsed part: {parsed_data}")
+            return parsed_data
+        
+        self.logger.warning(f"Could not parse part item for email: {item_text} with available pattern.")
+        return None
+
     def generate_email(self):
-        self.logger.info("Email generation placeholder"); self._show_status_message("Email generation not yet implemented", 3000); return True
+        self.logger.info("Starting email generation...")
+
+        customer_name = self.customer_name.text().strip()
+        salesperson = self.salesperson.text().strip()
+
+        if not customer_name:
+            QMessageBox.warning(self, "Missing Data", "Customer name is required for email.")
+            self.customer_name.setFocus()
+            self._show_status_message("Email generation failed: Customer name missing.", 3000)
+            return False
+        if not salesperson:
+            QMessageBox.warning(self, "Missing Data", "Salesperson name is required for email.")
+            self.salesperson.setFocus()
+            self._show_status_message("Email generation failed: Salesperson missing.", 3000)
+            return False
+
+        equipment_items_data = []
+        for i in range(self.equipment_list.count()):
+            item = self.equipment_list.item(i)
+            if item:
+                parsed = self._parse_equipment_item_for_email(item.text())
+                if parsed:
+                    equipment_items_data.append(parsed)
+        
+        parts_items_data = []
+        for i in range(self.part_list.count()):
+            item = self.part_list.item(i)
+            if item:
+                parsed = self._parse_part_item_for_email(item.text())
+                if parsed:
+                    parts_items_data.append(parsed)
+
+        first_item_for_subject = ""
+        if equipment_items_data:
+            first_item_for_subject = equipment_items_data[0].get('name', "")
+        elif parts_items_data:
+            first_item_for_subject = parts_items_data[0].get('name', "")
+            if not first_item_for_subject: # If name is empty, try part number
+                 first_item_for_subject = parts_items_data[0].get('number', "")
+        
+        subject_first_item_display = f" ({first_item_for_subject})" if first_item_for_subject else ""
+        subject = f"AMS DEAL - {customer_name}{subject_first_item_display}"
+
+        # Determine "Charge To" for Parts and Work Order sections
+        wo_charge_to_text = self.work_order_charge_to.text().strip()
+        effective_charge_to = wo_charge_to_text
+        if not effective_charge_to:
+            if equipment_items_data:
+                effective_charge_to = equipment_items_data[0].get('stock', '') # Use STK# of first equipment
+                if effective_charge_to:
+                    effective_charge_to = f"STK# {effective_charge_to}"
+            if not effective_charge_to: # If still no STK#, use customer name
+                effective_charge_to = customer_name
+        if not effective_charge_to: # Fallback if all else fails
+            effective_charge_to = "N/A"
+
+
+        body_lines = [
+            f"Customer: {customer_name}",
+            f"Sales: {salesperson}",
+            ""
+        ]
+
+        if equipment_items_data:
+            body_lines.append("EQUIPMENT")
+            body_lines.append("--------------------------------------------------")
+            for eq in equipment_items_data:
+                price_val = 0.0
+                try:
+                    price_val = float(eq.get('price', '0.00'))
+                except ValueError:
+                    pass # Keep 0.0
+                price_display = f"${price_val:,.2f}"
+                eq_line = f"{eq.get('name', 'N/A')} STK# {eq.get('stock', 'N/A')} {price_display}"
+                body_lines.append(eq_line)
+            body_lines.append("")
+
+        if parts_items_data:
+            body_lines.append("PARTS")
+            body_lines.append("--------------------------------------------------")
+            for part in parts_items_data:
+                part_name_display = part.get('name', '')
+                if not part_name_display and part.get('number', ''): # If no name, use number
+                    part_name_display = part.get('number', 'N/A')
+                elif not part_name_display and not part.get('number', ''): # If neither, use N/A
+                     part_name_display = "N/A"
+
+                loc_display = part.get('location', '')
+                part_line = f"{part.get('qty', '0')} x {part_name_display}"
+                if loc_display:
+                    part_line += f" {loc_display}"
+                
+                part_specific_charge_to = part.get('charge_to', '')
+                final_part_charge_to = part_specific_charge_to if part_specific_charge_to else effective_charge_to
+                part_line += f" Charge to {final_part_charge_to}"
+                body_lines.append(part_line)
+            body_lines.append("")
+
+        wo_hours = self.work_order_hours.text().strip()
+        if wo_hours: # Only add WO section if hours are specified
+            body_lines.append("WORK ORDER")
+            body_lines.append("--------------------------------------------------")
+            body_lines.append(f"{wo_hours} x Hours, charge to {effective_charge_to}")
+            body_lines.append("")
+
+        body_lines.append("--------------------------------------------------")
+        body_lines.append(f"CDK and spreadsheet have been updated. {salesperson} to collect.")
+
+        body = "\r\n".join(body_lines) # Outlook prefers CRLF for body in mailto links
+
+        # Determine recipients
+        to_recipient = "amsdeals@briltd.com"
+        cc_recipient = ""
+        if parts_items_data:
+            cc_recipient = "amsparts@briltd.com"
+
+        # Construct deeplink URL
+        base_url = "https://outlook.office.com/mail/deeplink/compose"
+        
+        params = {'to': to_recipient, 'subject': subject}
+        if cc_recipient:
+            params['cc'] = cc_recipient
+        
+        query_string_main = urllib.parse.urlencode(params)
+        # Ensure body is quoted correctly for URL, especially with CRLF
+        full_url = f"{base_url}?{query_string_main}&body={urllib.parse.quote(body.replace(' ', '%20'))}"
+
+
+        self.logger.info(f"Generated Outlook deeplink. To: {to_recipient}, CC: {cc_recipient or 'None'}, Subject: {subject}")
+        self.logger.debug(f"Email Body (raw for URL):\n{body}")
+        self.logger.debug(f"Full URL: {full_url}")
+
+        try:
+            webbrowser.open(full_url)
+            self._show_status_message("Email draft opened in Outlook.", 5000)
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to open web browser for email: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Could not open email client: {e}")
+            self._show_status_message("Error opening email client.", 3000)
+            return False
 
     def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
@@ -1357,6 +1572,7 @@ class DealFormView(QWidget):
         try:
             self.logger.debug(f"Processed completer selection for equipment name: '{selected_text}' (main logic via editingFinished)")
         except Exception as e: self.logger.error(f"Error in _on_equipment_product_name_selected_from_completer: {e}", exc_info=True)
+
 
 class SharePointConfigChecker:
     @staticmethod
