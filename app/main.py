@@ -46,7 +46,7 @@ except ImportError:
    SharePointManagerService = None
 
 from app.services.api_clients.quote_builder import QuoteBuilder
-from app.services.integrations.jd_auth_manager import JDAuthManager
+from app.services.integrations.jd_auth_manager import JDAuthManager, AuthenticationRequiredError # Added AuthenticationRequiredError
 from app.services.api_clients.jd_quote_client import JDQuoteApiClient
 from app.services.api_clients.maintain_quotes_api import MaintainQuotesAPI
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
@@ -1108,13 +1108,16 @@ async def _fix_authentication_config(config: BRIDealConfig, jd_auth_manager: JDA
        # Check authentication status
        if jd_auth_manager and jd_auth_manager.is_operational:
            logger.info("Checking JD API authentication status on startup")
-           token = jd_auth_manager.get_access_token()
-           if asyncio.iscoroutinefunction(jd_auth_manager.get_access_token):
-               token = await jd_auth_manager.get_access_token()
-           else:
-               token = jd_auth_manager.get_access_token()
-           if not token:
-               logger.info("No valid JD API token found at startup")
+           try:
+               token = await jd_auth_manager.get_access_token()  # Ensure this is awaited
+               if not token:
+                   logger.info("No valid JD API token found at startup")
+               # else: 
+               #    logger.info("Valid JD API token found at startup.") # Optional success log
+           except AuthenticationRequiredError: # Specifically catch this error
+               logger.info("JD Authentication is required and not yet complete during startup check.")
+           except Exception as e_auth_check: # Catch any other unexpected errors during the token check
+               logger.warning(f"Unexpected error during JD auth status check: {e_auth_check}")
        
    except ImportError:
        logger.warning("JD auth improvements module not available")

@@ -323,26 +323,69 @@ class CsvEditorBase(BaseViewModule):
         self.thread_pool.start(worker)
     
     def _fetch_from_sharepoint(self):
-        csv_content = None
-        try:
-            if self.enhanced_sharepoint_manager and hasattr(self.enhanced_sharepoint_manager, 'download_file_content_enhanced'):
-                self.logger.info(f"Attempting download via enhanced_sharepoint_manager for: {self.sharepoint_file_url}")
-                csv_content = self.enhanced_sharepoint_manager.download_file_content_enhanced(self.sharepoint_file_url)
-            elif self.sharepoint_manager and hasattr(self.sharepoint_manager, 'download_file_content'):
-                self.logger.warning(f"Attempting download via basic sharepoint_manager for: {self.sharepoint_file_url}. This might fail for direct URLs if token is Graph API scoped.")
-                csv_content = self.sharepoint_manager.download_file_content(self.sharepoint_file_url)
-            else:
-                raise Exception("No suitable SharePoint manager available for download.")
+        self.logger.info(f"Attempting Graph API download for: {self.sharepoint_file_url}")
+        
+        actual_sp_manager = getattr(self, 'enhanced_sharepoint_manager', self.sharepoint_manager)
+        if not actual_sp_manager:
+            raise Exception("SharePoint manager not available.")
+        if not hasattr(actual_sp_manager, '_get_headers'):
+            raise Exception("SharePoint manager does not have '_get_headers' method.")
+        if not hasattr(self, '_get_graph_api_content_url'):
+            raise Exception("'_get_graph_api_content_url' method not found in CsvEditorBase.")
 
-            if csv_content:
-                df = pd.read_csv(io.StringIO(csv_content))
-                return df
-            else:
-                raise Exception(f"No content received from SharePoint for URL: {self.sharepoint_file_url}")
-                
+        if not self.sharepoint_file_url:
+            raise Exception("SharePoint file URL is not set.")
+
+        graph_api_url = "" # Initialize for logging in case of early failure
+        try:
+            graph_api_url = self._get_graph_api_content_url(self.sharepoint_file_url)
+            if not graph_api_url:
+                # _get_graph_api_content_url already logs an error, so just raise
+                raise Exception(f"Failed to construct Graph API URL for {self.sharepoint_file_url}.")
+
+            auth_headers = actual_sp_manager._get_headers()
+            if not auth_headers or 'Authorization' not in auth_headers:
+                raise Exception("Failed to get valid authentication headers from SharePoint manager.")
+
+            # For file content download, typically only Authorization and User-Agent are needed.
+            download_headers = {
+                'Authorization': auth_headers['Authorization'],
+                'Accept': 'text/csv, text/plain, application/octet-stream, */*' 
+            }
+            if 'User-Agent' in auth_headers: # Preserve User-Agent if SharePointManager sets one
+                download_headers['User-Agent'] = auth_headers['User-Agent']
+            
+            self.logger.debug(f"Requesting CSV from Graph API URL: {graph_api_url}")
+            response = requests.get(graph_api_url, headers=download_headers, timeout=30) # Added timeout
+            response.raise_for_status()  # Raises HTTPError for bad responses (4xx or 5xx)
+
+            # Decode with utf-8-sig to handle BOM, then fallback if needed
+            try:
+                csv_content = response.content.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                self.logger.warning("Failed to decode CSV content with utf-8-sig, falling back to requests' default (ISO-8859-1).")
+                csv_content = response.text # response.text uses 'ISO-8859-1' by default if no encoding found
+
+            if not csv_content: # Check if content is empty
+                 raise Exception("Downloaded CSV content is empty.")
+
+            df = pd.read_csv(io.StringIO(csv_content), dtype=str).fillna('') # Ensure dtype=str and fillna
+            self.logger.info(f"Successfully fetched and parsed CSV from Graph API for {os.path.basename(self.csv_file_path)} ({len(df)} rows).")
+            return df
+
+        except requests.exceptions.HTTPError as http_err:
+            err_msg = f"HTTP error fetching from Graph API ({graph_api_url}): {http_err.response.status_code if http_err.response else 'N/A'} - {http_err.response.text[:200] if http_err.response else 'No response text'}"
+            self.logger.error(err_msg, exc_info=True)
+            raise Exception(err_msg) from http_err
+        except requests.exceptions.RequestException as req_err:
+            err_msg = f"Request error fetching from Graph API ({graph_api_url}): {req_err}"
+            self.logger.error(err_msg, exc_info=True)
+            raise Exception(err_msg) from req_err
         except Exception as e:
-            self.logger.error(f"Error fetching from SharePoint: {e}", exc_info=True)
-            raise 
+            # Catch any other exception, including parsing errors from _get_graph_api_content_url
+            err_msg = f"Failed to fetch CSV from SharePoint via Graph API for {self.sharepoint_file_url}: {e}"
+            self.logger.error(err_msg, exc_info=True)
+            raise Exception(err_msg) from e
     
     def _sync_from_sharepoint_complete(self, df: pd.DataFrame):
         try:
