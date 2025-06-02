@@ -51,6 +51,7 @@ from app.services.api_clients.maintain_quotes_api import MaintainQuotesAPI
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
 
 # View Module Imports
+from app.views.modules.home_page_dashboard_view import HomePageDashboardView # Added Home Page Dashboard
 from app.views.modules.deal_form_view import DealFormView
 from app.views.modules.recent_deals_view import RecentDealsView
 from app.views.modules.price_book_view import PriceBookView
@@ -419,6 +420,7 @@ class MainWindow(QMainWindow):
            
            # Load modules with error isolation
            modules_to_load = [
+               ("home_dashboard", self._create_home_page_dashboard_view, "Home Dashboard"), # Added Home Dashboard
                ("deal_form", self._create_deal_form_view, "New Deal"),
                ("recent_deals", self._create_recent_deals_view, "Recent Deals"),
                ("price_book", self._create_price_book_view, "Price Book"),
@@ -464,6 +466,7 @@ class MainWindow(QMainWindow):
    def _preload_module_icons(self):
        """Preload module icon paths for better performance"""
        known_icon_files = [
+           "home_dashboard_icon.png", # Added Home Dashboard icon
            "new_deal_icon.png", "recent_deals_icon.png", "price_book_icon.png",
            "used_inventory_icon.png", "receiving_icon.png", "data_editors_icon.png",
            "calculator_icon.png", "jd_quote_icon.png", "invoice_icon.png"
@@ -596,12 +599,24 @@ class MainWindow(QMainWindow):
            self.logger.error(f"Failed to create InvoiceModuleView: {e}", exc_info=True)
            return None
 
+    def _create_home_page_dashboard_view(self) -> Optional[HomePageDashboardView]:
+        """Create home page dashboard view with error handling"""
+        try:
+            return HomePageDashboardView(
+                config=self.config,
+                main_window=self,
+                logger_instance=logging.getLogger("HomePageDashboardViewLogger")
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to create HomePageDashboardView: {e}", exc_info=True)
+            return None
+
    def _set_default_view(self):
        """Set the default view with error handling"""
        try:
            if self.nav_list.count() > 0:
                # Try to find the default module
-               default_module_title = "New Deal"
+               default_module_title = "Home Dashboard" # Changed to Home Dashboard
                items = self.nav_list.findItems(default_module_title, Qt.MatchFlag.MatchExactly)  # Updated for PyQt6
                
                if items:
