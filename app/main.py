@@ -24,7 +24,8 @@ from app.core.config import get_config, BRIDealConfig
 from app.core.logger_config import setup_logging
 from app.core.app_auth_service import AppAuthService
 from app.core.threading import get_task_manager, AsyncTaskManager
-from app.core.exceptions import BRIDealException, AuthenticationError, ValidationError, ErrorSeverity
+from app.core.exceptions import (BRIDealException, AuthenticationError, 
+                                 ValidationError, ErrorSeverity, ErrorContext, ErrorCategory) # APIError removed as it's not in the original, added Context, Category
 from app.core.security import SecureConfig
 from app.core.performance import get_http_client_manager, get_performance_monitor, cleanup_performance_resources
 
@@ -51,6 +52,7 @@ from app.services.api_clients.maintain_quotes_api import MaintainQuotesAPI
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
 
 # View Module Imports
+from app.views.modules.home_page_dashboard_view import HomePageDashboardView # Added Home Page Dashboard
 from app.views.modules.deal_form_view import DealFormView
 from app.views.modules.recent_deals_view import RecentDealsView
 from app.views.modules.price_book_view import PriceBookView
@@ -137,13 +139,17 @@ class MainWindow(QMainWindow):
            self.show_status_message(f"Welcome to {config.app_name}!", "info")
            
        except Exception as e:
-           error_context = BRIDealException.create_context(
-               code="MAINWINDOW_INIT_ERROR",
-               message=f"Failed to initialize main window: {str(e)}",
+           # This is the main exception handler for __init__
+           self.logger.error(f"Critical error during MainWindow initialization: {str(e)}", exc_info=True)
+           context = ErrorContext(
+               code="MAINWINDOW_INIT_CRITICAL_FAILURE", 
+               message=f"A critical error occurred during application window initialization: {str(e)}",
+               details={"exception_type": type(e).__name__},
                severity=ErrorSeverity.CRITICAL,
-               details={"exception_type": type(e).__name__}
+               category=ErrorCategory.SYSTEM,
+               user_message="The application encountered a severe error during startup and cannot continue."
            )
-           self._handle_critical_error(BRIDealException(error_context))
+           self._handle_critical_error(BRIDealException(context))
 
    def _init_ui(self):
        """Initialize the user interface with enhanced error handling and PyQt6 updates"""
@@ -419,6 +425,7 @@ class MainWindow(QMainWindow):
            
            # Load modules with error isolation
            modules_to_load = [
+               ("home_dashboard", self._create_home_page_dashboard_view, "Home Dashboard"), # Added Home Dashboard
                ("deal_form", self._create_deal_form_view, "New Deal"),
                ("recent_deals", self._create_recent_deals_view, "Recent Deals"),
                ("price_book", self._create_price_book_view, "Price Book"),
@@ -454,16 +461,29 @@ class MainWindow(QMainWindow):
            self._set_default_view()
            
        except Exception as e:
-           self.logger.error(f"Critical error loading modules: {e}", exc_info=True)
-           self._handle_critical_error(BRIDealException.create_context(
-               code="MODULE_LOAD_ERROR",
-               message=f"Failed to load application modules: {str(e)}",
-               severity=ErrorSeverity.HIGH
-           ))
+           # This specific handler for _load_modules is now in the __init__ method's try-except block.
+           # If an error occurs within _load_modules itself (not during its call from __init__), 
+           # it would be caught here. However, the critical path is the __init__ one.
+           # For robustness, we can keep a similar detailed error creation here,
+           # or simplify if this path is less critical / expected to be caught by __init__.
+           # For now, let's assume the __init__ handler is the primary one for MODULE_LOAD_FAILURE.
+           # If _load_modules were called from elsewhere and failed, this would be relevant.
+           self.logger.error(f"Error within _load_modules method (not during initial call): {str(e)}", exc_info=True)
+           context = ErrorContext(
+               code="MODULE_LOAD_INTERNAL_ERROR",
+               message=f"An internal error occurred while loading modules: {str(e)}",
+               details={"exception_type": type(e).__name__},
+               severity=ErrorSeverity.HIGH, # Could be CRITICAL if it prevents app function
+               category=ErrorCategory.SYSTEM, # Corrected category
+               user_message="An error occurred loading application parts. Some features might be unavailable."
+           )
+           self._handle_critical_error(BRIDealException(context))
+
 
    def _preload_module_icons(self):
        """Preload module icon paths for better performance"""
        known_icon_files = [
+           "home_dashboard_icon.png", # Added Home Dashboard icon
            "new_deal_icon.png", "recent_deals_icon.png", "price_book_icon.png",
            "used_inventory_icon.png", "receiving_icon.png", "data_editors_icon.png",
            "calculator_icon.png", "jd_quote_icon.png", "invoice_icon.png"
@@ -596,12 +616,24 @@ class MainWindow(QMainWindow):
            self.logger.error(f"Failed to create InvoiceModuleView: {e}", exc_info=True)
            return None
 
+   def _create_home_page_dashboard_view(self) -> Optional[HomePageDashboardView]:
+       """Create home page dashboard view with error handling"""
+       try:
+           return HomePageDashboardView(
+               config=self.config,
+               main_window=self,
+               logger_instance=logging.getLogger("HomePageDashboardViewLogger")
+           )
+       except Exception as e:
+           self.logger.error(f"Failed to create HomePageDashboardView: {e}", exc_info=True)
+           return None
+
    def _set_default_view(self):
        """Set the default view with error handling"""
        try:
            if self.nav_list.count() > 0:
                # Try to find the default module
-               default_module_title = "New Deal"
+               default_module_title = "Home Dashboard" # Changed to Home Dashboard
                items = self.nav_list.findItems(default_module_title, Qt.MatchFlag.MatchExactly)  # Updated for PyQt6
                
                if items:
@@ -806,24 +838,58 @@ class MainWindow(QMainWindow):
    def _handle_critical_error(self, error: BRIDealException):
        """Handle critical errors that may require application shutdown"""
        try:
-           self.last_error = error
-           self.logger.critical(f"Critical error: {error.context.message}", extra={"error_context": error.context})
+           # Ensure error has a context, which it should if created correctly
+           if not hasattr(error, 'context') or not isinstance(error.context, ErrorContext):
+               # Fallback for unexpected error types or missing context
+               self.logger.critical(f"Critical error handler received malformed error: {str(error)}", exc_info=True)
+               QMessageBox.critical(
+                   self,
+                   "Critical Application Error",
+                   f"An unexpected critical error occurred: {str(error)}\n\nPlease restart the application."
+               )
+               QTimer.singleShot(1000, self.close) # Ensure QTimer is imported
+               return
+
+           self.last_error = error # Assuming self.last_error is for storing the BRIDealException instance
            
-           # Show critical error dialog
+           # Use error.context for logging and messaging
+           log_message = error.context.message
+           if error.context.details:
+               log_message += f" Details: {error.context.details}"
+           
+           # Log with the full context if possible, or at least code and original message.
+           self.logger.critical(
+               f"Critical error ({error.context.code}): {log_message}", 
+               extra={"error_context": error.context} # 'extra' for structured logging if configured
+           )
+           
+           user_msg = error.context.user_message or error.context.message # Fallback to technical message if no user_message
+           
            QMessageBox.critical(
                self,
                "Critical Application Error",
-               f"A critical error has occurred:\n\n{error.context.user_message or error.context.message}\n\n"
+               f"A critical error has occurred:\n\n{user_msg}\n\n"
                f"The application may not function properly. Please restart the application."
            )
            
-           # Optionally trigger graceful shutdown
-           if error.context.severity == ErrorSeverity.CRITICAL:
-               self.logger.critical("Initiating graceful shutdown due to critical error")
-               QTimer.singleShot(1000, self.close)  # Delay to allow user to read message
+           if error.context.severity == ErrorSeverity.CRITICAL: # Check severity from context
+               self.logger.critical("Initiating graceful shutdown due to CRITICAL error severity.")
+               # Ensure QTimer is imported: from PyQt6.QtCore import QTimer
+               QTimer.singleShot(1000, self.close)
                
-       except Exception as e:
-           self.logger.error(f"Error handling critical error: {e}", exc_info=True)
+       except Exception as e_handler:
+           # Fallback if the error handler itself fails
+           self.logger.error(f"Exception in _handle_critical_error: {e_handler}", exc_info=True)
+           # Attempt to show a very basic message
+           try:
+               QMessageBox.critical(self, "Internal Error", "A critical error occurred, and the error handler also failed.")
+           except:
+               pass # Suppress if even QMessageBox fails
+           finally:
+               # Ensure application attempts to close
+               # QTimer should be available as it's imported at the top of the file.
+               # QApplication and sys are also imported at the top.
+               QTimer.singleShot(1000, self.close)
 
    def closeEvent(self, event):
        """Enhanced close event with proper cleanup"""
