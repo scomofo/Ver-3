@@ -276,126 +276,86 @@ class CsvEditorBase(BaseViewModule):
             QPushButton:disabled {{ background-color: #6c757d; opacity: 0.6; }}
         """
 
-def _get_graph_api_content_url(self, direct_sharepoint_url: str) -> Optional[str]:
-    if not direct_sharepoint_url: # direct_sharepoint_url is self.sharepoint_file_url passed from _fetch_from_sharepoint
-        self.logger.error("Direct SharePoint URL is empty, cannot construct Graph API URL.")
-        return None
+    def _get_graph_api_content_url(self, direct_sharepoint_url: str) -> Optional[str]:
+        # direct_sharepoint_url is self.sharepoint_file_url passed from _fetch_from_sharepoint
+        if not direct_sharepoint_url:
+            self.logger.error("Direct SharePoint URL is empty, cannot construct Graph API URL.")
+            return None
 
-    actual_sp_manager = getattr(self, 'enhanced_sharepoint_manager', None) or getattr(self, 'sharepoint_manager', None)
-    if not actual_sp_manager:
-        self.logger.error("SharePoint manager instance is not available.")
-        return None
-    if not hasattr(actual_sp_manager, 'site_id') or not actual_sp_manager.site_id:
-        self.logger.error("SharePoint manager does not have a valid 'site_id' attribute.")
-        return None
-    
-    # Use graph_base_url from the manager if available, otherwise default
-    graph_api_base_url = getattr(actual_sp_manager, 'graph_base_url', "https://graph.microsoft.com/v1.0")
-    configured_site_id = actual_sp_manager.site_id
-
-    # Determine item_path_for_graph based on how self.sharepoint_file_url is constructed
-    # In _set_sharepoint_url:
-    #   base_url_config_key = "SHAREPOINT_APP_RESOURCES_URL"
-    #   default_base_url = "https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/" (example)
-    #   base_url = self.config.get(base_url_config_key, default_base_url)
-    #   filename = os.path.basename(self.csv_file_path)
-    #   self.sharepoint_file_url = base_url + urllib.parse.quote(filename)
-    #
-    # From this, we need to extract the path component that is relative to the drive root.
-    # Example: if base_url ends with ".../Shared Documents/App resources/" and "Shared Documents" is the drive root,
-    # then the path for Graph API is "App resources/filename.csv".
-
-    filename = os.path.basename(self.csv_file_path) # e.g., "customers.csv"
-    
-    # Attempt to parse the base_url used to construct self.sharepoint_file_url
-    # This is a bit indirect; ideally, the relative path components would be stored more directly.
-    original_base_url_from_config = self.config.get(
-        "SHAREPOINT_APP_RESOURCES_URL", 
-        "https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/" # Default from _set_sharepoint_url
-    )
-    
-    parsed_original_base_url = urllib.parse.urlparse(original_base_url_from_config)
-    path_segments = [segment for segment in parsed_original_base_url.path.split('/') if segment]
-    
-    # Try to find "Shared Documents" and take the path after it
-    item_path_for_graph = None
-    try:
-        shared_docs_index = -1
-        # Iterate through unquoted segments to find "shared documents" case-insensitively
-        for i, segment in enumerate(path_segments):
-            if urllib.parse.unquote(segment).lower() == "shared documents":
-                shared_docs_index = i
-                break
+        actual_sp_manager = getattr(self, 'enhanced_sharepoint_manager', None) or getattr(self, 'sharepoint_manager', None)
+        if not actual_sp_manager:
+            self.logger.error("SharePoint manager instance is not available for Graph API URL construction.")
+            return None
+        if not hasattr(actual_sp_manager, 'site_id') or not actual_sp_manager.site_id:
+            self.logger.error("SharePoint manager does not have a valid 'site_id' attribute.")
+            return None
         
-        if shared_docs_index != -1:
-            # Path after "Shared Documents"
-            folder_path_segments = path_segments[shared_docs_index+1:]
-            if folder_path_segments: # If there are segments after "Shared Documents"
-                item_path_for_graph = "/".join(folder_path_segments) + "/" + filename
-            else: # If "Shared Documents" is the last part, file is directly under it
-                item_path_for_graph = filename
-            item_path_for_graph = item_path_for_graph.strip("/") # Ensure no leading/trailing slashes if joining makes them
-        else:
-            # Fallback if "Shared Documents" is not in the base_url path.
-            # This might happen if the base_url is already relative or points to a different library.
-            # A simple assumption: the last segment of the base_url path is the folder, or it's root.
-            # This is less robust and might need site-specific configuration.
-            self.logger.warning(
-                f"'Shared Documents' not found in base URL path ('{parsed_original_base_url.path}'). "
-                f"Attempting to use the last segment as folder or assuming root for '{filename}'."
-            )
-            if path_segments:
-                # Consider the case where base_url might be "..../MyOtherLibrary/AppFolder/"
-                # Then path_segments could be [..., 'MyOtherLibrary', 'AppFolder']
-                # This logic needs to be very careful.
-                # For now, let's assume a simpler structure or that the configured base_url
-                # is something like ".../ParentFolder/TargetFolderForCSVs/"
-                # If the base_url path is just "/sites/SiteName/LibraryName/FolderName/"
-                # then path_segments might be ['sites', 'SiteName', 'LibraryName', 'FolderName']
-                # We need "FolderName/filename.csv" if LibraryName is the drive.
-                # This part is the most complex due to variability in SharePoint URL structures and drive mapping.
+        graph_api_base_url = getattr(actual_sp_manager, 'graph_base_url', "https://graph.microsoft.com/v1.0")
+        # Directly use the site_id from the SharePoint manager, as it's expected to be in the correct Graph API format
+        graph_site_id = actual_sp_manager.site_id 
 
-                # A common default configuration for 'FILE_PATH' in SharePointExcelManager (for the main Excel)
-                # is relative to the drive root, e.g., "Folder/file.xlsx".
-                # We assume CSVs are in a subfolder like "App resources".
-                # So, if the configured SharePoint URL points to "..../App resources/", then the relative path is "App resources/filename"
+        filename = os.path.basename(self.csv_file_path) # e.g., "customers.csv"
+        item_path_relative_to_drive = None
+        config_base_url_str = "" # Initialize for logging in case of early failure in try block
+
+        # Attempt to derive the item path from SHAREPOINT_APP_RESOURCES_URL
+        # This URL is expected to be like: https://[tenant].sharepoint.com/sites/[SiteName]/Shared Documents/App Resources/
+        try:
+            config_base_url_str = self.config.get("SHAREPOINT_APP_RESOURCES_URL")
+            if config_base_url_str:
+                parsed_config_url = urllib.parse.urlparse(config_base_url_str.rstrip('/')) # Ensure no trailing slash for basename
                 
-                # Simplification: Assume the last non-empty segment of the base_url path is the containing folder name.
-                containing_folder = ""
-                if path_segments:
-                    # Filter out potential site identifiers if they are part of path_segments
-                    # e.g. /sites/ISGandAMS/Shared Documents/App resources -> path_segments = [sites, ISGandAMS, Shared Documents, App resources]
-                    # We need the path *within* the drive.
-                    # Let's assume the path after "Shared Documents" (if present) or the last segment of the config URL path is the folder.
-                    # This part was already attempted above with shared_docs_index.
-                    # If shared_docs_index was -1, it means "Shared Documents" wasn't found.
-                    # In this case, we have to make a best guess or require more specific config.
-                    # For now, let's assume the "App resources" folder is directly under the drive root if "Shared Documents" isn't part of the base_url's path.
-                    # This is consistent with the original hardcoded guess in the plan.
-                    item_folder = "App resources" # Default assumption
-                    # Try to get the folder name from the last segment of the base_url if it seems more specific
-                    if parsed_original_base_url.path.strip('/').count('/') > 2: # Heuristic: path has some depth
-                        potential_folder = path_segments[-1] if path_segments else ""
-                        if potential_folder.lower() != urllib.parse.unquote(parsed_original_base_url.netloc).lower() and potential_folder.lower() != "sites":
-                             item_folder = urllib.parse.unquote(potential_folder) # Use the last segment if it's not hostname or 'sites'
-                    
-                    item_path_for_graph = f"{item_folder}/{filename}"
-                    self.logger.info(f"Using derived item path (fallback logic): '{item_path_for_graph}' from base URL '{original_base_url_from_config}'. Please verify.")
+                # The path part of this URL (e.g., /sites/ISGandAMS/Shared Documents/App Resources)
+                # needs to be processed to find the path relative to the drive root.
+                path_segments = [s for s in parsed_config_url.path.split('/') if s]
+                
+                shared_docs_index = -1
+                for i, segment in enumerate(path_segments):
+                    if urllib.parse.unquote(segment).lower() == "shared documents":
+                        shared_docs_index = i
+                        break
+                
+                if shared_docs_index != -1:
+                    # Path segments after "Shared Documents" form the folder path
+                    folder_path_segments = path_segments[shared_docs_index+1:]
+                    if folder_path_segments:
+                        csv_folder_path = "/".join(folder_path_segments)
+                        item_path_relative_to_drive = f"{csv_folder_path}/{filename}"
+                    else: # If "Shared Documents" is the last part, file is directly under it (less likely for this config)
+                        item_path_relative_to_drive = filename
+                else:
+                    # Fallback if "Shared Documents" isn't in SHAREPOINT_APP_RESOURCES_URL's path.
+                    # This implies SHAREPOINT_APP_RESOURCES_URL might point to a different library,
+                    # or the path is already relative to a drive.
+                    # A simple heuristic: use the last path segment of the configured URL as the folder.
+                    if path_segments:
+                        # Example: if config URL is ".../MySpecialLibrary/CSVFiles/", last segment is "CSVFiles"
+                        last_segment = urllib.parse.unquote(path_segments[-1])
+                        item_path_relative_to_drive = f"{last_segment}/{filename}"
+                        self.logger.warning(
+                            f"Constructing item path using last segment of SHAREPOINT_APP_RESOURCES_URL ('{last_segment}') "
+                            f"as 'Shared Documents' was not found. Resulting path: '{item_path_relative_to_drive}'. Verify correctness."
+                        )
+                    else: # If path is empty, this is an issue.
+                        self.logger.error(f"Cannot determine CSV folder from SHAREPOINT_APP_RESOURCES_URL: '{config_base_url_str}'. Path is empty.")
+                        return None
+            else:
+                self.logger.error("SHAREPOINT_APP_RESOURCES_URL is not configured. Cannot determine item path for Graph API.")
+                return None # Cannot proceed without this config for path derivation
 
-    except ValueError as e: # Handle potential errors from urlparse or split
-        self.logger.error(f"Could not parse relative path from SharePoint URL {direct_sharepoint_url}: {e}")
-        raise Exception(f"Invalid SharePoint URL format: {direct_sharepoint_url}") from e
+        except Exception as e_path_parse: # More specific variable name for clarity
+            self.logger.error(f"Error parsing SHAREPOINT_APP_RESOURCES_URL ('{config_base_url_str}') for item path: {e_path_parse}. Cannot construct Graph API URL.", exc_info=True)
+            return None
+
+        if not item_path_relative_to_drive:
+            self.logger.error(f"Failed to derive a valid item_path_relative_to_drive for '{filename}'.")
+            return None
+
+        encoded_item_path = urllib.parse.quote(item_path_relative_to_drive.strip("/"))
+        graph_url = f"{graph_api_base_url}/sites/{graph_site_id}/drive/root:/{encoded_item_path}:/content"
         
-    if not item_path_for_graph:
-        self.logger.error(f"Could not determine Graph API item path from direct URL: {direct_sharepoint_url} and base config URL: {original_base_url_from_config}")
-        return None
-
-    encoded_item_path = urllib.parse.quote(item_path_for_graph.strip("/"))
-    # Construct the final URL
-    graph_url = f"{graph_api_base_url}/sites/{configured_site_id}/drive/root:/{encoded_item_path}:/content"
-    
-    self.logger.info(f"Constructed Graph API URL for CSV download: {graph_url}")
-    return graph_url
+        self.logger.info(f"Constructed Graph API URL (Attempt 2 logic): {graph_url}")
+        return graph_url
 
     def sync_from_sharepoint(self):
         if not (self.sharepoint_manager or self.enhanced_sharepoint_manager) or not self.sharepoint_file_url:
