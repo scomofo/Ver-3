@@ -20,14 +20,12 @@ from app.views.modules.base_view_module import BaseViewModule
 # from app.services.crypto_service import CryptoService
 
 # --- Constants ---
-# TODO: Replace "YOUR_API_KEY_HERE" with a real OpenWeatherMap API key.
-# This key should ideally be loaded from a configuration file or environment variable.
-OPENWEATHERMAP_API_KEY = "YOUR_API_KEY_HERE" # TODO: Replace with your OpenWeatherMap API key
+# TODO: These API keys should ideally be loaded from a secure configuration file or environment variables.
+OPENWEATHERMAP_API_KEY = "92c14d7df751ef55dfd97364024f6319"
 OPENWEATHERMAP_BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 
-# TODO: Replace "YOUR_API_KEY_HERE" with a real ExchangeRate-API key.
-# This key should ideally be loaded from a configuration file or environment variable.
-EXCHANGERATE_API_KEY = "YOUR_API_KEY_HERE" # TODO: Replace with your ExchangeRate-API key
+# TODO: These API keys should ideally be loaded from a secure configuration file or environment variables.
+EXCHANGERATE_API_KEY = "0095107b1ed05a6305f2d932"
 EXCHANGERATE_BASE_URL = "https://v6.exchangerate-api.com/v6/"
 
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3/"

@@ -1486,139 +1486,189 @@ class DealFormView(BaseViewModule): # Changed inheritance
             QMessageBox.critical(self, "Save Error", f"Could not save CSV file locally:\n{e}")
             return False
 
+    def _parse_equipment_item_for_email(self, item_text: str) -> Optional[Dict[str, str]]:
+        self.logger.debug(f"Parsing equipment item for email: '{item_text}'")
+        # Pattern: "Name" (Code: CODE) STK#STOCK Order#ORDER $PRICE  OR "Name" STK#STOCK $PRICE
+        # Order# is optional, Code is optional
+        match = re.match(r'"(.*?)"(?:\s+\(Code:\s*.*?\))?\s+STK#(.*?)(?:\s+Order#.*?)?\s+\$(.*)', item_text)
+        if match:
+            name, stk, price_str = match.groups()
+            name = name.strip()
+            stk = stk.strip()
+            price = f"${price_str.strip()}" # Keep price as string with $
+            self.logger.debug(f"Parsed equipment: Name='{name}', STK#='{stk}', Price='{price}'")
+            return {'name': name, 'stk': stk, 'price': price}
+
+        # Simpler pattern if the above fails (e.g. no Order# and no Code)
+        match_simple = re.match(r'"(.*?)"\s+STK#(.*?)\s+\$(.*)', item_text)
+        if match_simple:
+            name, stk, price_str = match_simple.groups()
+            name = name.strip()
+            stk = stk.strip()
+            price = f"${price_str.strip()}"
+            self.logger.debug(f"Parsed equipment (simple): Name='{name}', STK#='{stk}', Price='{price}'")
+            return {'name': name, 'stk': stk, 'price': price}
+
+        self.logger.warning(f"Could not parse equipment item for email: '{item_text}'")
+        return None
+
+    def _parse_part_item_for_email(self, item_text: str) -> Optional[Dict[str, str]]:
+        self.logger.debug(f"Parsing part item for email: '{item_text}'")
+        # Pattern: Qty x PartNum - Name | Loc: LOC | Charge to: CHARGE
+        # PartNum, Loc, and Charge to are all optional in the string structure.
+        # Qty must exist.
+        match = re.match(r'(\d+)x\s(?:(.*?)\s+-\s+)?(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$', item_text)
+        if match:
+            qty, pn, name, loc, charge = match.groups()
+            qty = (qty or "1").strip()
+            pn = (pn or "").strip()
+            name = (name or "N/A").strip()
+            loc = (loc or "").strip()
+            charge = (charge or "").strip()
+
+            if not pn and name and not " " in name and any(c.isalnum() for c in name):
+                 potential_pn_match = re.match(r'([a-zA-Z0-9-]+)', name)
+                 if potential_pn_match and potential_pn_match.group(1) == name:
+                     pn = name
+                     name = ""
+                     self.logger.debug(f"Corrected part parsing: PN was likely in name field. New PN='{pn}', Name='{name}'")
+
+            parsed_data = {'qty': qty, 'pn': pn, 'name': name, 'loc': loc, 'charge': charge}
+            self.logger.debug(f"Parsed part: {parsed_data}")
+            return parsed_data
+
+        self.logger.warning(f"Could not parse part item for email: '{item_text}'")
+        return None
+
     def generate_email(self) -> bool:
-        self.logger.info(f"Starting Outlook deep link email generation for {self.module_name}...")
+        self.logger.info(f"Starting email generation for {self.MODULE_DISPLAY_NAME} using Outlook deep link.")
 
-        customer_name_str = self.customer_name.text().strip()
-        salesperson_str = self.salesperson.text().strip()
+        customer_name = self.customer_name.text().strip()
+        if not customer_name:
+            self.logger.warning("Customer name is missing. Aborting email generation.")
+            QMessageBox.warning(self, "Missing Data", "Customer name is required to generate an email.")
+            self.customer_name.setFocus()
+            return False
 
-        if not customer_name_str:
-             self.logger.warning("Customer name is missing, cannot generate email link.")
-             QMessageBox.warning(self, "Missing Data", "Customer name is required for email.")
-             self.customer_name.setFocus()
-             return False
-        if not salesperson_str:
-             self.logger.warning("Salesperson name is missing, cannot generate email link.")
-             QMessageBox.warning(self, "Missing Data", "Salesperson name is required for email.")
-             self.salesperson.setFocus()
-             return False
+        salesperson_name = self.salesperson.text().strip()
+        if not salesperson_name:
+            self.logger.warning("Salesperson name is missing. Aborting email generation.")
+            QMessageBox.warning(self, "Missing Data", "Salesperson name is required to generate an email.")
+            self.salesperson.setFocus()
+            return False
 
-        self.logger.info(f"Customer: '{customer_name_str}', Salesperson: '{salesperson_str}'. Collecting data for email body.")
+        self.logger.info(f"Collecting data for email. Customer: '{customer_name}', Salesperson: '{salesperson_name}'.")
 
-        # 1. Data for Email Body (Plain Text)
-        body_lines = []
-        body_lines.append(f"Customer: {customer_name_str}")
-        body_lines.append(f"Salesperson: {salesperson_str}")
-        body_lines.append(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        body_lines.append("\n--- Equipment ---")
-        if self.equipment_list.count() > 0:
-            for i in range(self.equipment_list.count()):
-                item_text = self.equipment_list.item(i).text()
-                match = re.match(r'"(.*?)"(?:\s+\(Code:\s*(.*?)\))?\s+STK#(.*?)(?:\s+Order#(.*?))?\s+\$(.*)', item_text)
-                if match:
-                    name, _, stock, _, price = match.groups()
-                    body_lines.append(f"- {name} (STK#: {stock}) - ${price}")
-                else:
-                    body_lines.append(f"- {item_text} (parse error)")
-        else:
-            body_lines.append("N/A")
+        wo_hours = self.work_order_hours.text().strip()
+        wo_charge_to = self.work_order_charge_to.text().strip()
 
-        body_lines.append("\n--- Trades ---")
-        if self.trade_list.count() > 0:
-            for i in range(self.trade_list.count()):
-                item_text = self.trade_list.item(i).text()
-                match_with_stock = re.match(r'"(.*?)"\s+STK#(.*?)\s+\$(.*)', item_text)
-                match_no_stock = re.match(r'"(.*?)"\s+\$(.*)', item_text)
-                if match_with_stock:
-                    name, stock, amount = match_with_stock.groups()
-                    body_lines.append(f"- {name} (STK#: {stock}) - ${amount}")
-                elif match_no_stock:
-                    name, amount = match_no_stock.groups()
-                    body_lines.append(f"- {name} - ${amount}")
-                else:
-                    body_lines.append(f"- {item_text} (parse error)")
-        else:
-            body_lines.append("N/A")
+        equipment_items = []
+        for i in range(self.equipment_list.count()):
+            item = self._parse_equipment_item_for_email(self.equipment_list.item(i).text())
+            if item:
+                equipment_items.append(item)
 
-        body_lines.append("\n--- Parts ---")
-        if self.part_list.count() > 0:
-            for i in range(self.part_list.count()):
-                item_text = self.part_list.item(i).text()
-                match = re.match(r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$', item_text)
-                if match:
-                    qty, num, name, _, _ = match.groups()
-                    body_lines.append(f"- {qty}x {num} - {name}")
-                else:
-                    body_lines.append(f"- {item_text} (parse error)")
-        else:
-            body_lines.append("N/A")
+        part_items = []
+        for i in range(self.part_list.count()):
+            item = self._parse_part_item_for_email(self.part_list.item(i).text())
+            if item:
+                part_items.append(item)
 
-        body_lines.append("\n--- Work Order / Options ---")
-        body_lines.append(f"Work Order Required: {'Yes' if self.work_order_required.isChecked() else 'No'}")
-        body_lines.append(f"Charge To: {self.work_order_charge_to.text().strip() or 'N/A'}")
-        body_lines.append(f"Est. Hours: {self.work_order_hours.text().strip() or 'N/A'}")
-        body_lines.append(f"Paid: {'Yes' if self.paid_checkbox.isChecked() else 'No'}")
+        # Determine Effective Charge To
+        effective_charge_to = customer_name # Default
+        if wo_charge_to:
+            effective_charge_to = wo_charge_to
+        elif part_items and not equipment_items: # Only parts, charge to customer
+            effective_charge_to = customer_name
+        elif equipment_items: # Equipment exists, charge to first equipment's stock number
+            effective_charge_to = f"STK# {equipment_items[0]['stk']}"
 
-        deal_notes_str = self.deal_notes_textedit.toPlainText().strip()
-        body_lines.append("\n--- Notes ---")
-        body_lines.append(deal_notes_str if deal_notes_str else "N/A")
+        self.logger.debug(f"Determined effective_charge_to: {effective_charge_to}")
 
-        plain_text_body = "\n".join(body_lines)
-        self.logger.debug(f"Plain text email body constructed (length: {len(plain_text_body)}). First 200 chars: {plain_text_body[:200]}")
+        # Determine First Item for Subject
+        first_item_name = ""
+        if equipment_items:
+            first_item_name = equipment_items[0]['name']
+        elif part_items:
+            first_item_name = part_items[0]['name']
+        self.logger.debug(f"First item for subject: '{first_item_name}'")
 
-        # 2. Recipients and Subject
-        subject = f"New Deal Information for {customer_name_str}"
+        # Construct Subject
+        subject = f"AMS DEAL - {customer_name}"
+        if first_item_name:
+            subject += f" ({first_item_name})"
         self.logger.info(f"Email subject: '{subject}'")
 
-        recipient_str = ""
-        if self.config and hasattr(self.config, 'get'):
-            default_recipient_from_config = self.config.get("DEFAULT_DEAL_EMAIL_RECIPIENT")
-            self.logger.debug(f"DEFAULT_DEAL_EMAIL_RECIPIENT from config: {default_recipient_from_config}")
-            if default_recipient_from_config and isinstance(default_recipient_from_config, str):
-                recipient_str = default_recipient_from_config
-            elif default_recipient_from_config: # Could be a list
-                 self.logger.warning(f"DEFAULT_DEAL_EMAIL_RECIPIENT from config is not a string: {default_recipient_from_config}. Using first element if list, else placeholder.")
-                 if isinstance(default_recipient_from_config, list) and default_recipient_from_config:
-                     recipient_str = default_recipient_from_config[0] # Take first if list
-                 else: # Fallback if not string or empty list
-                    recipient_str = "placeholder@example.com"
+        # Construct Email Body (List of Strings for lines)
+        body_lines = [
+            f"Customer: {customer_name}",
+            f"Sales: {salesperson_name}"
+        ]
 
-        if not recipient_str:
-            self.logger.warning("DEFAULT_DEAL_EMAIL_RECIPIENT not found or invalid in config. Using placeholder: placeholder@example.com")
-            self._show_status_message("⚠️ Email recipient not configured. Using placeholder. Please update config.", 7000)
-            recipient_str = "placeholder@example.com"
+        if equipment_items:
+            body_lines.append("\nEQUIPMENT")
+            body_lines.append("--------------------------------------------------")
+            for eq in equipment_items:
+                body_lines.append(f"{eq['name']} STK# {eq['stk']} {eq['price']}")
 
-        self.logger.info(f"Target recipient for Outlook link: {recipient_str}")
+        if part_items:
+            body_lines.append("\nPARTS")
+            body_lines.append("--------------------------------------------------")
+            for p_item in part_items:
+                charge_to_for_part = p_item['charge'] if p_item['charge'] else effective_charge_to
+                loc_display = f" {p_item['loc']}" if p_item['loc'] else ""
+                pn_display = f"{p_item['pn']} - " if p_item['pn'] else ""
+                body_lines.append(f"{p_item['qty']} x {pn_display}{p_item['name']}{loc_display} Charge to {charge_to_for_part}")
 
-        # 3. Construct and Open Outlook Deep Link
+        if wo_hours:
+            body_lines.append("\nWORK ORDER")
+            body_lines.append("--------------------------------------------------")
+            body_lines.append(f"{wo_hours} x Hours, charge to {effective_charge_to}")
+
+        deal_notes_text = self.deal_notes_textedit.toPlainText().strip()
+        if deal_notes_text:
+            body_lines.append("\nNOTES")
+            body_lines.append("--------------------------------------------------")
+            body_lines.append(deal_notes_text)
+
+        body_lines.append(f"\nCDK and spreadsheet have been updated. {salesperson_name} to collect.")
+
+        # Recipients
+        to_email = "amsdeals@briltd.com"
+        cc_email = "amsparts@briltd.com" if part_items else ""
+        self.logger.info(f"Email recipients: TO='{to_email}', CC='{cc_email if cc_email else "N/A"}'")
+
+        # Build Deep Link URL
+        body_string = "\r\n".join(body_lines) # Use CRLF for body
+        self.logger.debug(f"Plain text email body for URL (first 200 chars): {body_string[:200]}")
+
+        encoded_to = urllib.parse.quote(to_email)
         encoded_subject = urllib.parse.quote(subject)
-        encoded_body = urllib.parse.quote(plain_text_body)
-        # Note: Outlook deep link 'to' parameter typically expects a single email or comma-separated if multiple, but behavior can vary.
-        # For simplicity, using the (potentially comma-separated) string directly.
-        encoded_to = urllib.parse.quote(recipient_str)
+        encoded_body = urllib.parse.quote(body_string)
 
         outlook_url = f"https://outlook.office.com/mail/deeplink/compose?to={encoded_to}&subject={encoded_subject}&body={encoded_body}"
+        if cc_email:
+            encoded_cc = urllib.parse.quote(cc_email)
+            outlook_url += f"&cc={encoded_cc}"
 
-        self.logger.info(f"Constructed Outlook deep link (body length: {len(encoded_body)}). Opening URL...")
-        # Avoid logging the full URL if body is very long and makes logs noisy.
-        # self.logger.debug(f"Outlook URL: {outlook_url}")
+        self.logger.info(f"Constructed Outlook deep link. Length: {len(outlook_url)}. Opening URL...")
+        # self.logger.debug(f"Full Outlook URL: {outlook_url}") # Potentially very long
 
         try:
             opened = webbrowser.open(outlook_url)
             if opened:
-                self._show_status_message("🚀 Opening email in Outlook (web)... Please check your browser.", 5000)
+                self._show_status_message("🚀 Email opened in Outlook (web). Please review and send.", 5000)
                 self.logger.info("Successfully opened Outlook deep link in browser.")
-                return True
             else:
-                self._show_status_message("⚠️ Could not open email link in browser. Link copied to clipboard.", 7000)
+                self._show_status_message("⚠️ Could not open email link. Copied to clipboard.", 7000)
                 self.logger.warning("webbrowser.open returned False. Attempting to copy link to clipboard.")
                 try:
-                    QApplication.clipboard().setText(outlook_url)
+                    QApplication.clipboard().setText(outlook_url) # Ensure QApplication is available
                     self.logger.info("Outlook deep link copied to clipboard.")
                 except Exception as clip_err:
-                    self.logger.error(f"Failed to copy Outlook link to clipboard: {clip_err}")
-                    self._show_status_message("⚠️ Could not open email or copy link. Please check logs.", 7000)
-                return False
+                    self.logger.error(f"Failed to copy Outlook link to clipboard: {clip_err}", exc_info=True)
+                    self._show_status_message("⚠️ Error copying email link to clipboard. Check logs.", 7000)
+            return True # Indicate that the process to open/copy was actioned
         except Exception as e:
             self.logger.error(f"Exception during webbrowser.open for Outlook link: {e}", exc_info=True)
             self._show_status_message(f"❌ Error opening email link: {e}", 7000)

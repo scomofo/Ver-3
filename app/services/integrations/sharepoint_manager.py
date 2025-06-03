@@ -477,7 +477,7 @@ class SharePointExcelManager:
                 row_values_list = [row_data.tolist()]
                 # Calculate the target Excel row number (1-indexed for user display, 0-indexed for API if relative to sheet start)
                 current_target_excel_row_for_patch = start_row_excel_index + index # This is the 0-indexed row for the patch
-                
+
                 # Address for PATCH is 1-indexed for Excel users, e.g., A1.
                 # If start_row_excel_index is 0 (empty sheet), first row is A1.
                 # If start_row_excel_index is 1 (header exists), first new data row is A2.
@@ -602,7 +602,7 @@ class SharePointExcelManager:
 
             df_for_session_append = pd.DataFrame(new_data)
 
-            logger.info(f"{log_prefix}Attempting update via Session API...")
+            logger.info(f"{log_prefix}Attempting update exclusively via Session API...")
             session_update_success = self._update_excel_via_session(
                 df_for_session_append,
                 file_info,
@@ -613,29 +613,10 @@ class SharePointExcelManager:
                 logger.info(f"{log_prefix}Update successful via Session API.")
                 return True
             else:
-                logger.warning(f"{log_prefix}Session API append failed. Falling back to direct update (full rewrite of the first sheet)...")
-            
-            logger.info(f"{log_prefix}Attempting update via direct file upload (rewriting the first sheet)...")
-            current_df = self.get_excel_data(sheet_name=0) # Reads the first sheet, has its own logging
-            if current_df is None:
-                logger.error(f"{log_prefix}Failed to get current Excel data (first sheet) for direct update. Update aborted. Backup: {backup_path}")
+                logger.error(f"{log_prefix}Session API append failed. No fallback to direct update will be attempted to prevent file overwrite. Data saved locally at {backup_path}")
                 return False
 
-            new_df_prepared_for_concat = pd.DataFrame(new_data)
-            if not current_df.empty and not new_df_prepared_for_concat.empty:
-                logger.debug(f"{log_prefix}Aligning columns for direct update concat. Current columns: {current_df.columns.tolist()}, New data columns: {new_df_prepared_for_concat.columns.tolist()}")
-                new_df_prepared_for_concat = new_df_prepared_for_concat.reindex(columns=current_df.columns)
-
-            updated_df_for_direct = pd.concat([current_df, new_df_prepared_for_concat], ignore_index=True)
-            logger.info(f"{log_prefix}DataFrame for direct upload (first sheet) has {len(updated_df_for_direct)} total rows.")
-
-            direct_update_success = self._update_excel_file_direct(updated_df_for_direct, file_id)
-            if direct_update_success:
-                logger.info(f"{log_prefix}Update successful via Direct Upload (first sheet rewritten).")
-                return True
-
-            logger.warning(f"{log_prefix}Both Session API and Direct Upload failed. Data saved locally at {backup_path}")
-            return False
+            # Fallback block to _update_excel_file_direct is now removed.
 
         except Exception as e:
             logger.error(f"{log_prefix}Unhandled exception in update_excel_data: {e}", exc_info=True)
