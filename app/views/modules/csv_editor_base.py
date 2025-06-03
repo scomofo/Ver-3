@@ -405,6 +405,7 @@ class CsvEditorBase(BaseViewModule):
 
         # item_path_relative_to_drive should now be a clean, decoded string like "App resources/customers.csv"
         # Now, URL-encode it once.
+        item_path_relative_to_drive = urllib.parse.unquote(item_path_relative_to_drive)
         encoded_item_path = urllib.parse.quote(item_path_relative_to_drive.strip("/"))
 
         self.logger.info(f"DEBUG: encoded_item_path after quote: '{encoded_item_path}'")
