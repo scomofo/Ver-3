@@ -291,8 +291,11 @@ class CsvEditorBase(BaseViewModule):
             return None
 
         graph_api_base_url = getattr(actual_sp_manager, 'graph_base_url', "https://graph.microsoft.com/v1.0")
-        graph_site_id = actual_sp_manager.site_id.rstrip(':')
-        self.logger.info(f"DEBUG: graph_site_id before final URL construction: '{graph_site_id}'")
+        graph_site_id_temp = actual_sp_manager.site_id
+        while graph_site_id_temp.endswith(':'):
+            graph_site_id_temp = graph_site_id_temp[:-1]
+        graph_site_id = graph_site_id_temp
+        self.logger.info(f"DEBUG: graph_site_id after stripping colons: '{graph_site_id}'")
 
         parsed_direct_url = urllib.parse.urlparse(direct_sharepoint_url) # direct_sharepoint_url is self.sharepoint_file_url
         # path_segments_from_direct_url are already URL-decoded by .path
