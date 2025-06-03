@@ -38,7 +38,8 @@ QLabel#H4, .H4Label {
 
 QLabel {
     background-color: transparent; /* Ensure labels don't have unexpected backgrounds */
-    padding: 4px; /* Base small padding */
+    padding: 2px 0px;
+    margin-bottom: 2px;
 }
 
 QPushButton {
@@ -48,6 +49,8 @@ QPushButton {
     padding: 8px 12px; /* Vertical and horizontal padding */
     border-radius: 4px; /* @borderRadius */
     font-weight: bold;
+    margin-left: 4px;
+    margin-right: 4px;
 }
 
 QPushButton:hover {
@@ -73,6 +76,8 @@ QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     border-radius: 4px; /* @borderRadius */
     padding: 6px 8px; /* Adjusted padding for input fields */
     font-size: 10pt;
+    margin-top: 4px;
+    margin-bottom: 8px;
 }
 
 QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
@@ -205,3 +210,42 @@ QLineEdit[placeholderText], QTextEdit[placeholderText] {
     color: #6c757d; /* @textColorSecondary */
 }
 /* Note: Actual placeholder text color might need specific widget properties in code or more complex QSS if direct QSS selectors are limited */
+
+QListWidget {
+    margin-top: 8px;
+    border: 1px solid #dee2e6; /* Consistent with other input fields */
+    border-radius: 4px;
+    padding: 4px;
+    background-color: #ffffff;
+}
+
+QListWidget::item {
+    padding: 5px;
+}
+
+QListWidget::item:selected {
+    background-color: #007bff; /* @primaryColor */
+    color: white;
+}
+
+QListWidget::item:hover {
+    background-color: #e9ecef; /* Light hover */
+}
+
+QLineEdit::clear-button {
+    /* Attempt to use a standard-looking system icon if possible, though paths are tricky */
+    /* image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-clear-16.png); */
+    background-color: #cccccc;
+    border: 1px solid #aaaaaa;
+    border-radius: 7px; /* Make it roundish */
+    padding: 1px;
+    margin: 2px 4px 2px 2px; /* top, right, bottom, left */
+    height: 14px; /* Approximate size */
+    width: 14px;  /* Approximate size */
+}
+QLineEdit::clear-button:hover {
+    background-color: #bbbbbb;
+}
+QLineEdit::clear-button:pressed {
+    background-color: #aaaaaa;
+}
