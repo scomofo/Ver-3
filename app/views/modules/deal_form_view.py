@@ -723,7 +723,7 @@ class DealFormView(QWidget):
         self.generate_csv_btn.clicked.connect(self.generate_csv_action)
         main_actions_layout.addWidget(self.generate_csv_btn)
         self.generate_email_btn = QPushButton("Generate Email")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_MailForward)
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward)
         self.generate_email_btn.setIcon(icon)
         self.generate_email_btn.setIconSize(QSize(16, 16))
         self.generate_email_btn.clicked.connect(self.generate_email)
