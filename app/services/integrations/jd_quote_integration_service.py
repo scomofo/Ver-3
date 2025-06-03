@@ -1,4 +1,5 @@
 # app/services/integrations/jd_quote_integration_service.py
+import asyncio
 import logging
 import json
 import os
@@ -231,7 +232,7 @@ class JDQuoteIntegrationService:
             logger.error(f"Error creating quote via API: {e}", exc_info=True)
             return {"type": "ERROR", "body": {"errorMessage": str(e)}}
 
-    def get_quote_details_via_api(self, quote_id: str, dealer_account_no: str) -> dict:
+    async def get_quote_details_via_api(self, quote_id: str, dealer_account_no: str) -> dict:
         """
         Retrieves quote details from the John Deere system.
         
@@ -253,7 +254,7 @@ class JDQuoteIntegrationService:
             
             logger.info(f"Requesting quote details for quote ID: {quote_id}")
             # Use the get_external_quote_status method which is already implemented in MaintainQuotesAPI
-            response = self.maintain_quotes_api.get_external_quote_status(quote_id)
+            response = await self.maintain_quotes_api.get_external_quote_status(quote_id)
             
             # Use the standard response handler
             handled_response = self._handle_api_response(response, f"retrieve quote details for {quote_id}")

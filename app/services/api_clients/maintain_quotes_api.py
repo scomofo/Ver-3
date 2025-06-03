@@ -73,7 +73,7 @@ class MaintainQuotesAPI:
             logger.error(f"MaintainQuotesAPI: Exception during external quote creation: {e}", exc_info=True)
             return None
 
-    def get_external_quote_status(self, external_quote_id: str) -> Optional[Dict[str, Any]]:
+    async def get_external_quote_status(self, external_quote_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieves the status of an existing quote from the external system.
 
@@ -93,7 +93,7 @@ class MaintainQuotesAPI:
 
         logger.info(f"MaintainQuotesAPI: Requesting status for external quote ID: {external_quote_id}")
         try:
-            response = self.jd_quote_api_client.get_quote_details(quote_id=external_quote_id)
+            response = await self.jd_quote_api_client.get_quote_details(quote_id=external_quote_id)
             if response:
                 logger.info(f"MaintainQuotesAPI: Successfully retrieved status for quote {external_quote_id}.")
                 return response # Contains status and other details
