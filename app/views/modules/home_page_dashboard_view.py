@@ -89,16 +89,31 @@ class HomePageDashboardView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the user interface of the dashboard."""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15) # Increased margins
-        main_layout.setSpacing(25) # Increased spacing
+        # main_layout = QVBoxLayout(self) # REMOVE THIS - Handled by BaseViewModule
+        # main_layout.setContentsMargins(15, 15, 15, 15)
+        # main_layout.setSpacing(25)
 
-        # --- Title ---
-        title_label = QLabel(self.MODULE_DISPLAY_NAME)
-        title_font = QFont("Arial", 18, QFont.Weight.Bold) # Larger title font
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title_label)
+        # --- Title is handled by BaseViewModule's header ---
+        # title_label = QLabel(self.MODULE_DISPLAY_NAME) # REMOVE THIS
+        # title_font = QFont("Arial", 18, QFont.Weight.Bold)
+        # title_label.setFont(title_font)
+        # title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # main_layout.addWidget(title_label) # REMOVE THIS
+
+        # Get the content container from BaseViewModule
+        content_container = self.get_content_container()
+        if not content_container.layout():
+            content_container_layout = QVBoxLayout(content_container)
+        else:
+            # If a layout already exists, use it. This might be QVBoxLayout or another type.
+            # If it's not QVBoxLayout and we need specific QVBoxLayout features, it might need adjustment.
+            # For now, assume it's suitable or a new QVBoxLayout is fine.
+            content_container_layout = content_container.layout()
+
+        # Ensure the content_container_layout has appropriate margins and spacing if desired
+        content_container_layout.setContentsMargins(15, 15, 15, 15) # Or use QSS
+        content_container_layout.setSpacing(20) # Or use QSS
+
 
         # --- Main Grid for Sections (2 columns) ---
         grid_layout = QGridLayout()
@@ -155,10 +170,14 @@ class HomePageDashboardView(BaseViewModule):
         financial_layout.addStretch() # Pushes content to top
         grid_layout.addWidget(financial_frame, 0, 1) # Add to main grid
 
-        main_layout.addLayout(grid_layout)
-        main_layout.addStretch() # Pushes sections to top
+        content_container_layout.addLayout(grid_layout) # Add grid to the content area's layout
+        content_container_layout.addStretch() # Pushes sections to top
 
         # Example of how to apply a common stylesheet (can be expanded)
+        # The styles for #DashboardSectionFrame and its QLabel children might be better in the global QSS
+        # or applied specifically if they are unique to this view.
+        # For now, keeping it here as the subtask didn't explicitly say to remove if not conflicting.
+        # If the base module's QSS defines these, this could be removed or refined.
         self.setStyleSheet("""
             #DashboardSectionFrame {
                 background-color: #f8f9fa;
@@ -170,6 +189,7 @@ class HomePageDashboardView(BaseViewModule):
                 color: #343a40; /* Darker text for better readability */
             }
         """)
+        # self.set_module_title(self.MODULE_DISPLAY_NAME) # Already handled by BaseViewModule __init__
 
     def load_module_data(self):
         """

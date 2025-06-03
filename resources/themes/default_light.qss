@@ -275,3 +275,57 @@ QFrame#DashboardSectionFrame QLabel {
     color: #212529;  /* Primary text color from foundational styles */
     background-color: transparent; /* Ensure no unexpected background from parent card */
 }
+
+/* BaseViewModule Styling */
+QFrame#BaseViewModule_Header {
+    background-color: #e9ecef; /* Light grey, distinct from page background */
+    border-bottom: 1px solid #ced4da; /* Separator line */
+    padding: 8px 12px;
+    min-height: 28px; /* Adjusted min-height */
+}
+
+/* Styles for QLabels directly within the BaseViewModule_Header (e.g., the module title) */
+QFrame#BaseViewModule_Header > QLabel {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #2c3e50;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Styles for other QLabels that might be added by derived classes into the header layout */
+/* For example, DealFormView's sp_status_label_ui */
+QFrame#BaseViewModule_Header QLabel {
+    font-size: 10pt; /* Default to smaller size if not the main title */
+    font-weight: normal;
+    color: #495057;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Re-apply title style specifically if it has an objectName or use the direct child selector for the main title */
+/* BaseViewModule._init_base_ui sets font for self.module_title_label in Python. */
+/* The QFrame#BaseViewModule_Header > QLabel selector above should target it. */
+
+
+QFrame#BaseViewModule_Footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 6px 12px;
+    min-height: 20px;
+    max-height: 30px; /* Ensure footer doesn't get too large */
+}
+
+/* Styles for QLabels directly within the BaseViewModule_Footer (e.g., self.status_label_base) */
+QFrame#BaseViewModule_Footer > QLabel {
+    font-size: 9pt;
+    color: #6c757d;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
