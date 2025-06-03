@@ -215,10 +215,10 @@ class CsvEditorBase(BaseViewModule):
             QHeaderView::section { background-color: #e9ecef; padding: 12px; border: 1px solid #dee2e6; font-weight: bold; font-size: 11pt; color: #495057; } /* Horizontal header */
             QHeaderView::section:hover { background-color: #dee2e6; }
             QTableView::verticalHeader::section { /* Vertical header */
-                font-size: 10pt; 
-                padding: 4px; 
-                background-color: #e9ecef; 
-                border-bottom: 1px solid #dee2e6; 
+                font-size: 10pt;
+                padding: 4px;
+                background-color: #e9ecef;
+                border-bottom: 1px solid #dee2e6;
             }
         """)
         self.table.setSortingEnabled(True)
@@ -289,87 +289,129 @@ class CsvEditorBase(BaseViewModule):
         if not hasattr(actual_sp_manager, 'site_id') or not actual_sp_manager.site_id:
             self.logger.error("SharePoint manager does not have a valid 'site_id' attribute.")
             return None
-        
-        graph_api_base_url = getattr(actual_sp_manager, 'graph_base_url', "https://graph.microsoft.com/v1.0")
-        graph_site_id = actual_sp_manager.site_id 
 
-        parsed_url = urllib.parse.urlparse(direct_sharepoint_url)
-        path_segments = [s for s in parsed_url.path.split('/') if s] # Non-empty segments, already unquoted by urlparse for path
+        graph_api_base_url = getattr(actual_sp_manager, 'graph_base_url', "https://graph.microsoft.com/v1.0")
+        graph_site_id = actual_sp_manager.site_id
+        self.logger.info(f"DEBUG: graph_site_id before final URL construction: '{graph_site_id}'")
+
+        parsed_direct_url = urllib.parse.urlparse(direct_sharepoint_url) # direct_sharepoint_url is self.sharepoint_file_url
+        # path_segments_from_direct_url are already URL-decoded by .path
+        path_segments_from_direct_url = [s for s in parsed_direct_url.path.split('/') if s]
 
         item_path_relative_to_drive = None
-        
-        # Try to find "Shared Documents" (case-insensitive) in the path segments
-        # and take all segments after it.
-        # Example: /sites/SiteName/Shared Documents/Folder1/Folder2/File.csv -> Folder1/Folder2/File.csv
+        filename = os.path.basename(self.csv_file_path) # Decoded filename
+
+        # Try to find "Shared Documents" in the path of direct_sharepoint_url
         shared_docs_index = -1
-        for i, segment in enumerate(path_segments):
-            # Compare unquoted segment against "shared documents"
-            if urllib.parse.unquote(segment).lower() == "shared documents":
+        for i, segment in enumerate(path_segments_from_direct_url):
+            # segment is already decoded here
+            if segment.lower() == "shared documents":
                 shared_docs_index = i
                 break
-            
-        if shared_docs_index != -1 and shared_docs_index < len(path_segments) - 1:
-            # Path segments after "Shared Documents"
-            relative_segments = path_segments[shared_docs_index+1:]
-            item_path_relative_to_drive = "/".join(relative_segments)
-        else:
-            # Fallback if "Shared Documents" is not found as a distinct segment,
-            # or if it's the last segment (implying file is in root of "Shared Documents", unlikely for CSVs).
-            # This part is crucial and depends on how self.sharepoint_file_url was constructed by _set_sharepoint_url.
-            # _set_sharepoint_url uses a base_url (from config SHAREPOINT_APP_RESOURCES_URL or default)
-            # and appends quote(filename).
-            # The default base_url is ".../Shared Documents/App resources/"
-            # So, if "Shared Documents" is not found by the logic above (e.g. if it's part of site name or not present)
-            # we need a reliable way to get "App resources/filename.csv".
 
-            filename = os.path.basename(self.csv_file_path) # Actual filename like "customers.csv"
+        if shared_docs_index != -1 and shared_docs_index < len(path_segments_from_direct_url) - 1:
+            # relative_segments are already decoded.
+            relative_segments = path_segments_from_direct_url[shared_docs_index+1:]
+            # Join them to form a clean path, then append the decoded filename.
+            # Ensure filename is not already part of the last segment if base_url included it.
+            # self.sharepoint_file_url was base_url + quote(filename).
+            # So, the last segment of path_segments_from_direct_url should be quote(filename).
+            # We need the folder path from path_segments_from_direct_url and append the raw filename.
+
+            # If last segment is the encoded filename, remove it to get the folder path
+            if relative_segments and urllib.parse.quote(filename).lower() == relative_segments[-1].lower():
+                 # This condition might be too strict if casing differs after quote.
+                 # A safer way if base_url in _set_sharepoint_url ends with '/':
+                 # folder_path = "/".join(relative_segments[:-1]) # if filename was appended to a folder path
+                 # Or, if base_url from config is the folder path:
+                 folder_path = "/".join(relative_segments) # if base_url itself is the folder path.
+
+            # Let's simplify: Assume SHAREPOINT_APP_RESOURCES_URL from config is the source of truth for the folder.
+            # The _set_sharepoint_url takes SHAREPOINT_APP_RESOURCES_URL (e.g., ".../Shared Documents/App resources/")
+            # and appends quote(filename).
+            # So, the path segments from SHAREPOINT_APP_RESOURCES_URL are what we need for the folder.
             
-            # Try to get the configured base URL path to extract the folder
-            # This is the base_url from _set_sharepoint_url method.
             config_base_sharepoint_url_str = self.config.get(
-                "SHAREPOINT_APP_RESOURCES_URL", 
-                "https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/" # Default
+                "SHAREPOINT_APP_RESOURCES_URL",
+                "https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/"
             )
             parsed_config_base_url = urllib.parse.urlparse(config_base_sharepoint_url_str.rstrip('/'))
+            # config_path_segments are already URL-decoded by .path
             config_path_segments = [s for s in parsed_config_base_url.path.split('/') if s]
 
-            # Find "Shared Documents" in the config base URL's path
             config_shared_docs_index = -1
             for i, segment in enumerate(config_path_segments):
-                if urllib.parse.unquote(segment).lower() == "shared documents":
+                if segment.lower() == "shared documents": # segment is already decoded
                     config_shared_docs_index = i
                     break
             
             if config_shared_docs_index != -1 and config_shared_docs_index < len(config_path_segments) -1:
-                # Segments after "Shared Documents" in the config base URL form the folder path
                 folder_path_segments = config_path_segments[config_shared_docs_index+1:]
+                # folder_path_segments are already decoded
                 csv_folder_path = "/".join(folder_path_segments)
-                item_path_relative_to_drive = f"{csv_folder_path}/{filename}"
-                self.logger.info(f"Using item path derived from SHAREPOINT_APP_RESOURCES_URL config: '{item_path_relative_to_drive}'")
+                item_path_relative_to_drive = f"{csv_folder_path}/{filename}" # filename is decoded
+            elif config_path_segments: # Fallback: use last segment of config URL as folder
+                last_config_segment = config_path_segments[-1] # already decoded
+                # Avoid using 'sites' or site name as folder
+                if last_config_segment.lower() not in ['sites', (config_path_segments[1].lower() if len(config_path_segments) > 1 else '')]:
+                    item_path_relative_to_drive = f"{last_config_segment}/{filename}"
+                    self.logger.warning(f"Using fallback (last segment of config URL) for item path: '{item_path_relative_to_drive}'")
+                else: # Default if last segment seems like a site name
+                    item_path_relative_to_drive = f"App resources/{filename}"
+                    self.logger.warning(f"Fallback (last segment unsuitable), defaulting to 'App resources/{filename}'")
+            else: # Absolute fallback
+                item_path_relative_to_drive = f"App resources/{filename}"
+                self.logger.warning(f"Fallback (config URL path empty), defaulting to 'App resources/{filename}'")
+
+        else: # "Shared Documents" not found in direct_sharepoint_url path
+              # This implies an unexpected URL structure. Rely on config based derivation as above.
+            filename = os.path.basename(self.csv_file_path) # decoded
+            config_base_sharepoint_url_str = self.config.get(
+                "SHAREPOINT_APP_RESOURCES_URL",
+                "https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/" # Default from _set_sharepoint_url
+            ) # Default from _set_sharepoint_url
+            parsed_config_base_url = urllib.parse.urlparse(config_base_sharepoint_url_str.rstrip('/'))
+            config_path_segments = [s for s in parsed_config_base_url.path.split('/') if s] # Decoded segments
+
+            config_shared_docs_index = -1
+            for i, segment in enumerate(config_path_segments):
+                if segment.lower() == "shared documents": # segment is decoded
+                    config_shared_docs_index = i
+                    break
+
+            if config_shared_docs_index != -1 and config_shared_docs_index < len(config_path_segments) -1:
+                folder_path_segments = config_path_segments[config_shared_docs_index+1:] # decoded
+                csv_folder_path = "/".join(folder_path_segments)
+                item_path_relative_to_drive = f"{csv_folder_path}/{filename}" # filename is decoded
+            elif config_path_segments:
+                last_config_segment = config_path_segments[-1] # decoded
+                if last_config_segment.lower() not in ['sites', (config_path_segments[1].lower() if len(config_path_segments) > 1 else '')]:
+                    item_path_relative_to_drive = f"{last_config_segment}/{filename}"
+                    self.logger.warning(f"Using fallback (last segment of config URL, 'Shared Docs' not in direct URL) for item path: '{item_path_relative_to_drive}'")
+                else:
+                    item_path_relative_to_drive = f"App resources/{filename}"
+                    self.logger.warning(f"Fallback (last segment unsuitable, 'Shared Docs' not in direct URL), defaulting to 'App resources/{filename}'")
             else:
-                # If still no clear path, use the last segment of the configured base URL path as the folder
-                # This is a less reliable fallback.
-                if config_path_segments:
-                    folder_name = urllib.parse.unquote(config_path_segments[-1])
-                     # Avoid using 'sites' or the site name itself as the folder if they are the last segment
-                    if folder_name.lower() not in ['sites', urllib.parse.unquote(path_segments[1] if len(path_segments) > 1 else '')]:
-                        item_path_relative_to_drive = f"{folder_name}/{filename}"
-                        self.logger.warning(f"Fallback: Using last segment of config URL path for item path: '{item_path_relative_to_drive}'")
-                    else: # Default to "App resources" if last segment is not suitable
-                        item_path_relative_to_drive = f"App resources/{filename}"
-                        self.logger.warning(f"Fallback: Last segment of config URL not suitable, defaulting to 'App resources/{filename}'")
-                else: # Absolute fallback if config URL path is empty
-                    item_path_relative_to_drive = f"App resources/{filename}" 
-                    self.logger.warning(f"Fallback: Could not determine folder from config URL, defaulting to 'App resources/{filename}'")
+                item_path_relative_to_drive = f"App resources/{filename}"
+                self.logger.warning(f"Fallback (config URL path empty, 'Shared Docs' not in direct URL), defaulting to 'App resources/{filename}'")
+
 
         if not item_path_relative_to_drive:
             self.logger.error(f"Could not determine Graph API item path from direct_sharepoint_url: {direct_sharepoint_url}")
             return None
 
-        encoded_item_path = urllib.parse.quote(item_path_relative_to_drive.strip("/")) # Ensure no leading/trailing slashes before encoding
+        self.logger.info(f"DEBUG: graph_site_id before final URL construction: '{graph_site_id}'")
+        self.logger.info(f"DEBUG: item_path_relative_to_drive before quote: '{item_path_relative_to_drive}'")
+
+        # item_path_relative_to_drive should now be a clean, decoded string like "App resources/customers.csv"
+        # Now, URL-encode it once.
+        encoded_item_path = urllib.parse.quote(item_path_relative_to_drive.strip("/"))
+
+        self.logger.info(f"DEBUG: encoded_item_path after quote: '{encoded_item_path}'")
+
         graph_url = f"{graph_api_base_url}/sites/{graph_site_id}/drive/root:/{encoded_item_path}:/content"
-        
-        self.logger.info(f"Constructed Graph API URL (Attempt 3 logic): {graph_url}")
+
+        self.logger.info(f"Constructed Graph API URL (Attempt 4 logic with debug logs): {graph_url}")
         return graph_url
 
     def sync_from_sharepoint(self):
@@ -392,7 +434,7 @@ class CsvEditorBase(BaseViewModule):
     
     def _fetch_from_sharepoint(self):
         self.logger.info(f"Attempting Graph API download for: {self.sharepoint_file_url}")
-        
+
         actual_sp_manager = getattr(self, 'enhanced_sharepoint_manager', self.sharepoint_manager)
         if not actual_sp_manager:
             raise Exception("SharePoint manager not available.")
@@ -418,11 +460,11 @@ class CsvEditorBase(BaseViewModule):
             # For file content download, typically only Authorization and User-Agent are needed.
             download_headers = {
                 'Authorization': auth_headers['Authorization'],
-                'Accept': 'text/csv, text/plain, application/octet-stream, */*' 
+                'Accept': 'text/csv, text/plain, application/octet-stream, */*'
             }
             if 'User-Agent' in auth_headers: # Preserve User-Agent if SharePointManager sets one
                 download_headers['User-Agent'] = auth_headers['User-Agent']
-            
+
             self.logger.debug(f"Requesting CSV from Graph API URL: {graph_api_url}")
             response = requests.get(graph_api_url, headers=download_headers, timeout=30) # Added timeout
             response.raise_for_status()  # Raises HTTPError for bad responses (4xx or 5xx)

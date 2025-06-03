@@ -24,7 +24,7 @@ from app.core.config import get_config, BRIDealConfig
 from app.core.logger_config import setup_logging
 from app.core.app_auth_service import AppAuthService
 from app.core.threading import get_task_manager, AsyncTaskManager
-from app.core.exceptions import (BRIDealException, AuthenticationError, 
+from app.core.exceptions import (BRIDealException, AuthenticationError,
                                  ValidationError, ErrorSeverity, ErrorContext, ErrorCategory) # APIError removed as it's not in the original, added Context, Category
 from app.core.security import SecureConfig
 from app.core.performance import get_http_client_manager, get_performance_monitor, cleanup_performance_resources
@@ -142,7 +142,7 @@ class MainWindow(QMainWindow):
            # This is the main exception handler for __init__
            self.logger.error(f"Critical error during MainWindow initialization: {str(e)}", exc_info=True)
            context = ErrorContext(
-               code="MAINWINDOW_INIT_CRITICAL_FAILURE", 
+               code="MAINWINDOW_INIT_CRITICAL_FAILURE",
                message=f"A critical error occurred during application window initialization: {str(e)}",
                details={"exception_type": type(e).__name__},
                severity=ErrorSeverity.CRITICAL,
@@ -462,7 +462,7 @@ class MainWindow(QMainWindow):
            
        except Exception as e:
            # This specific handler for _load_modules is now in the __init__ method's try-except block.
-           # If an error occurs within _load_modules itself (not during its call from __init__), 
+           # If an error occurs within _load_modules itself (not during its call from __init__),
            # it would be caught here. However, the critical path is the __init__ one.
            # For robustness, we can keep a similar detailed error creation here,
            # or simplify if this path is less critical / expected to be caught by __init__.
@@ -851,18 +851,18 @@ class MainWindow(QMainWindow):
                return
 
            self.last_error = error # Assuming self.last_error is for storing the BRIDealException instance
-           
+
            # Use error.context for logging and messaging
            log_message = error.context.message
            if error.context.details:
                log_message += f" Details: {error.context.details}"
-           
+
            # Log with the full context if possible, or at least code and original message.
            self.logger.critical(
-               f"Critical error ({error.context.code}): {log_message}", 
+               f"Critical error ({error.context.code}): {log_message}",
                extra={"error_context": error.context} # 'extra' for structured logging if configured
            )
-           
+
            user_msg = error.context.user_message or error.context.message # Fallback to technical message if no user_message
            
            QMessageBox.critical(
@@ -1112,7 +1112,7 @@ async def _fix_authentication_config(config: BRIDealConfig, jd_auth_manager: JDA
                token = await jd_auth_manager.get_access_token()  # Ensure this is awaited
                if not token:
                    logger.info("No valid JD API token found at startup")
-               # else: 
+               # else:
                #    logger.info("Valid JD API token found at startup.") # Optional success log
            except AuthenticationRequiredError: # Specifically catch this error
                logger.info("JD Authentication is required and not yet complete during startup check.")

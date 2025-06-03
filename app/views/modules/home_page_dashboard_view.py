@@ -73,7 +73,7 @@ class HomePageDashboardView(BaseViewModule):
         # Setup QTimer for periodic refresh
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self._refresh_all_data)
-        
+
         # Get refresh interval from config or use default (1 hour = 3600 * 1000 ms)
         # Note: self.config is available from BaseViewModule's __init__
         refresh_interval_ms = 3600 * 1000 # Default to 1 hour
@@ -109,7 +109,7 @@ class HomePageDashboardView(BaseViewModule):
         weather_frame.setFrameShape(QFrame.Shape.StyledPanel)
         weather_frame.setObjectName("DashboardSectionFrame") # For styling
         weather_layout = QVBoxLayout(weather_frame)
-        
+
         weather_title = QLabel("🌦️ Current Weather")
         weather_title.setFont(QFont("Arial", 14, QFont.Weight.Bold)) # Section title font
         weather_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -117,14 +117,14 @@ class HomePageDashboardView(BaseViewModule):
 
         self.weather_grid_layout = QGridLayout()
         self.weather_grid_layout.setSpacing(10)
-        
+
         self.weather_labels: Dict[str, QLabel] = {}
         for i, city_info in enumerate(CITIES_DETAILS):
             label = QLabel(f"{city_info['display_name']}: Fetching...")
             label.setFont(QFont("Arial", 10))
             self.weather_grid_layout.addWidget(label, i // 2, i % 2) # 2 cities per row
             self.weather_labels[city_info['key']] = label
-        
+
         weather_layout.addLayout(self.weather_grid_layout)
         weather_layout.addStretch() # Pushes content to top
         grid_layout.addWidget(weather_frame, 0, 0) # Add to main grid
@@ -151,7 +151,7 @@ class HomePageDashboardView(BaseViewModule):
         self.btc_price_label = QLabel("₿ BTC-USD: Fetching...")
         self.btc_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium))
         financial_layout.addWidget(self.btc_price_label)
-        
+
         financial_layout.addStretch() # Pushes content to top
         grid_layout.addWidget(financial_frame, 0, 1) # Add to main grid
 
@@ -193,7 +193,7 @@ class HomePageDashboardView(BaseViewModule):
         """Slot for the QTimer to refresh all dashboard data."""
         self.logger.info("Timer triggered: Refreshing all dashboard data...")
         self._update_status("Refreshing data (timer)...")
-        
+
         # Call all individual data fetching methods
         # TODO: Consider if these fetches should be done in separate threads
         # if they become too time-consuming and block the UI.
@@ -201,7 +201,7 @@ class HomePageDashboardView(BaseViewModule):
         self._fetch_forex_data()
         self._fetch_crypto_prices()
         self._fetch_commodity_prices() # This will just update to N/A as per current implementation
-        
+
         self._update_status("Dashboard data refreshed (timer).")
 
     def _fetch_weather_data(self):
@@ -219,7 +219,7 @@ class HomePageDashboardView(BaseViewModule):
             city_key = city_info['key']
             city_display_name = city_info['display_name']
             city_query = city_info['query']
-            
+
             if city_key not in self.weather_labels:
                 self.logger.warning(f"Label for city key '{city_key}' not found.")
                 continue
@@ -239,12 +239,12 @@ class HomePageDashboardView(BaseViewModule):
 
                 temp = data.get('main', {}).get('temp')
                 condition = data.get('weather', [{}])[0].get('description', 'N/A')
-                
+
                 if temp is not None:
                     self.weather_labels[city_key].setText(f"{city_display_name}: {temp:.1f}°C, {condition.capitalize()}")
                 else:
                     self.weather_labels[city_key].setText(f"{city_display_name}: Data N/A")
-                
+
             except requests.exceptions.Timeout:
                 self.logger.error(f"Timeout fetching weather for {city_display_name}.")
                 self.weather_labels[city_key].setText(f"{city_display_name}: Timeout")
@@ -257,7 +257,7 @@ class HomePageDashboardView(BaseViewModule):
             except Exception as e:
                 self.logger.error(f"Unexpected error processing weather for {city_display_name}: {e}", exc_info=True)
                 self.weather_labels[city_key].setText(f"{city_display_name}: Error")
-        
+
         self._update_status("Weather data fetch attempt complete.")
 
     def _fetch_forex_data(self):
@@ -330,7 +330,7 @@ class HomePageDashboardView(BaseViewModule):
             self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A)")
         else:
             self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: Data N/A")
-        
+
         self._update_status("Forex data fetch attempt complete.")
 
     def _fetch_commodity_prices(self):
@@ -340,7 +340,7 @@ class HomePageDashboardView(BaseViewModule):
         # is challenging. A dedicated agricultural data provider or a financial markets API
         # with commodity coverage (often paid) would likely be required.
         # For now, we are indicating that the data is not available.
-        
+
         self.canola_price_label.setText("🌾 Canola: Price Data N/A")
         self.logger.info("Canola price data is not integrated due to lack of a readily available free public API.")
         self._update_status("Canola Price: Data N/A")
@@ -358,7 +358,7 @@ class HomePageDashboardView(BaseViewModule):
             response_current_btc = requests.get(url_current_btc, timeout=10)
             response_current_btc.raise_for_status()
             data_current_btc = response_current_btc.json()
-            
+
             if 'bitcoin' in data_current_btc and 'usd' in data_current_btc['bitcoin']:
                 current_btc_price = data_current_btc['bitcoin']['usd']
             else:
@@ -377,7 +377,7 @@ class HomePageDashboardView(BaseViewModule):
             date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
             # CoinGecko API uses dd-mm-yyyy format for historical data
             formatted_date_7_days_ago = date_7_days_ago.strftime('%d-%m-%Y')
-            
+
             url_historical_btc = f"{COINGECKO_BASE_URL}coins/bitcoin/history?date={formatted_date_7_days_ago}&localization=false"
             response_historical_btc = requests.get(url_historical_btc, timeout=10)
             response_historical_btc.raise_for_status()
@@ -397,7 +397,7 @@ class HomePageDashboardView(BaseViewModule):
             self.logger.error("Error decoding JSON for historical BTC price from CoinGecko.")
         except Exception as e:
             self.logger.error(f"Unexpected error fetching historical BTC price: {e}", exc_info=True)
-            
+
         # Update label
         if current_btc_price is not None and historical_btc_price is not None:
             if current_btc_price > historical_btc_price:
@@ -411,7 +411,7 @@ class HomePageDashboardView(BaseViewModule):
             self.btc_price_label.setText(f"₿ BTC-USD: ${current_btc_price:,.2f} (Trend N/A)")
         else:
             self.btc_price_label.setText("₿ BTC-USD: Data N/A")
-            
+
         self._update_status("BTC price data fetch attempt complete.")
 
     def get_icon_name(self) -> str:
@@ -446,15 +446,15 @@ if __name__ == '__main__':
                 def showMessage(self, msg, timeout):
                     self.logger.info(f"Status: {msg} (timeout {timeout})")
             return MockStatusBar()
-    
+
     BaseViewModule.__bases__ = (MinimalBaseViewModule,) # Temporarily rebase for testing
 
     app = QApplication(sys.argv)
-    
+
     # Create a dummy main window for context if your module expects one
     # Or pass None if it can handle it. For this test, HomePageDashboardView
     # is the main widget being shown.
-    
+
     # Mock config and logger
     test_config = {"WEATHER_API_KEY": "test_weather_key", "FOREX_API_KEY": "test_forex_key"}
     test_logger = logging.getLogger("DashboardTest")
@@ -462,7 +462,7 @@ if __name__ == '__main__':
 
     # Instantiate the dashboard view
     # dashboard = HomePageDashboardView(config=test_config, logger_instance=test_logger, main_window=None)
-    
+
     # For the test, we need a main window that can provide a status bar if _update_status is called.
     # Let's create a simple QMainWindow for testing.
     class TestMainWindow(QWidget): # Changed to QWidget to avoid QMainWindow specific features unless needed
@@ -471,8 +471,8 @@ if __name__ == '__main__':
             self.setWindowTitle("Test Dashboard Container")
             self.layout = QVBoxLayout(self)
             self.dashboard_view = HomePageDashboardView(
-                config=test_config, 
-                logger_instance=test_logger, 
+                config=test_config,
+                logger_instance=test_logger,
                 main_window=self # Pass self as main_window
             )
             self.layout.addWidget(self.dashboard_view)
@@ -493,7 +493,7 @@ if __name__ == '__main__':
     # If BaseViewModule is QWidget based, it can be a top-level window
     # If it's QFrame or similar, it needs to be hosted.
     # Assuming BaseViewModule (and thus HomePageDashboardView) is a QWidget.
-    
+
     # dashboard = HomePageDashboardView(config=test_config, logger_instance=test_logger, main_window=None)
     # dashboard.setWindowTitle("Home Dashboard Test")
     # dashboard.resize(800, 600)
@@ -501,5 +501,5 @@ if __name__ == '__main__':
 
     main_win = TestMainWindow()
     main_win.show()
-    
+
     sys.exit(app.exec())
