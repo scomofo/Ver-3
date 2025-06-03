@@ -1,0 +1,202 @@
+/* Foundational Styles for BRIDeal - default_light.qss */
+
+/* Global Application Styles */
+QWidget {
+    font-family: "Segoe UI", Arial, "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 10pt; /* Base font size */
+    color: #212529; /* @textColorPrimary */
+    background-color: #ffffff; /* @backgroundColor */
+}
+
+/* Headings (Conceptual - applied to QLabels often used as headings) */
+/* Users can apply these styles using objectName or dynamic properties if needed */
+QLabel#H1, .H1Label { /* Example for H1, assuming objectName or custom property */
+    font-size: 16pt;
+    font-weight: bold;
+    color: #2c3e50; /* A slightly richer dark blue/gray for headings */
+}
+
+QLabel#H2, .H2Label {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+QLabel#H3, .H3Label { /* Good for GroupBox titles too */
+    font-size: 12pt;
+    font-weight: bold;
+    color: #343a40;
+}
+
+QLabel#H4, .H4Label {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #495057;
+}
+
+/* Common Widgets Styling */
+
+QLabel {
+    background-color: transparent; /* Ensure labels don't have unexpected backgrounds */
+    padding: 4px; /* Base small padding */
+}
+
+QPushButton {
+    background-color: #007bff; /* @primaryColor */
+    color: white;
+    border: 1px solid #007bff; /* @primaryColor */
+    padding: 8px 12px; /* Vertical and horizontal padding */
+    border-radius: 4px; /* @borderRadius */
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #0056b3; /* @hoverColor (darker primary) */
+    border-color: #0056b3;
+}
+
+QPushButton:pressed {
+    background-color: #004085; /* Even darker primary */
+    border-color: #00376e;
+}
+
+QPushButton:disabled {
+    background-color: #6c757d; /* @secondaryColor */
+    color: #e9ecef;
+    border-color: #6c757d;
+}
+
+QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #ffffff; /* @backgroundColor */
+    color: #212529; /* @textColorPrimary */
+    border: 1px solid #dee2e6; /* @borderColor */
+    border-radius: 4px; /* @borderRadius */
+    padding: 6px 8px; /* Adjusted padding for input fields */
+    font-size: 10pt;
+}
+
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: #80bdff; /* @focusBorderColor (light blue) */
+    /* box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);  QSS doesn't support box-shadow well */
+}
+
+QTextEdit {
+    selection-background-color: #007bff;
+    selection-color: white;
+}
+
+QGroupBox {
+    font-size: 12pt; /* H3 conceptual size */
+    font-weight: bold;
+    color: #343a40;
+    border: 1px solid #dee2e6; /* @borderColor */
+    border-radius: 8px; /* Slightly larger radius for group boxes */
+    margin-top: 16px; /* Space above the groupbox title */
+    padding: 16px; /* Internal padding for content, after title */
+    background-color: #f8f9fa; /* @surfaceColor */
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0px 8px 8px 8px; /* Padding around the title, bottom padding pushes content down */
+    left: 8px; /* Position title slightly inset */
+    /* background-color: transparent; Ensure title doesn't get QGroupBox background */
+}
+
+QTableWidget {
+    gridline-color: #dee2e6; /* @borderColor */
+    background-color: #ffffff; /* @backgroundColor */
+    alternate-background-color: #f8f9fa; /* @surfaceColor */
+    selection-background-color: #007bff; /* @primaryColor */
+    selection-color: white;
+    border: 1px solid #ced4da; /* Slightly darker border for table itself */
+    border-radius: 4px;
+}
+
+QTableWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #e9ecef; /* Lighter border for internal cells */
+}
+
+QHeaderView::section {
+    background-color: #e9ecef; /* Light gray for headers */
+    color: #212529; /* @textColorPrimary */
+    padding: 8px;
+    border: 1px solid #dee2e6; /* @borderColor */
+    font-size: 10pt;
+    font-weight: bold;
+}
+
+QHeaderView::section:horizontal {
+    border-top: none;
+    border-left: none;
+}
+QHeaderView::section:horizontal:first {
+    border-left: 1px solid #dee2e6; /* Add left border for the first header */
+}
+QHeaderView::section:vertical {
+    border-top: none;
+    border-right: none;
+}
+QHeaderView::section:vertical:first {
+    border-top: 1px solid #dee2e6; /* Add top border for the first vertical header */
+}
+
+
+/* Scrollbars - Basic Styling for consistency */
+QScrollBar:horizontal {
+    border: 1px solid #ced4da;
+    background: #f8f9fa;
+    height: 12px;
+    margin: 0px 12px 0 12px;
+}
+QScrollBar::handle:horizontal {
+    background: #adb5bd;
+    min-width: 20px;
+    border-radius: 6px;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    border: none;
+    background: none;
+    width: 12px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+QScrollBar:vertical {
+    border: 1px solid #ced4da;
+    background: #f8f9fa;
+    width: 12px;
+    margin: 12px 0 12px 0;
+}
+QScrollBar::handle:vertical {
+    background: #adb5bd;
+    min-height: 20px;
+    border-radius: 6px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+    height: 12px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* Tooltip Styling */
+QToolTip {
+    border: 1px solid #6c757d; /* @secondaryColor */
+    padding: 5px;
+    border-radius: 4px;
+    background-color: #ffffff; /* @backgroundColor */
+    color: #212529; /* @textColorPrimary */
+    opacity: 230; /* Slightly transparent */
+}
+
+/* Placeholder text color for QLineEdit etc. */
+QLineEdit[placeholderText], QTextEdit[placeholderText] {
+    color: #6c757d; /* @textColorSecondary */
+}
+/* Note: Actual placeholder text color might need specific widget properties in code or more complex QSS if direct QSS selectors are limited */
