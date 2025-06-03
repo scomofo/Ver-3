@@ -34,30 +34,31 @@ class BaseViewModule(QWidget):
             main_window (QMainWindow, optional): Reference to the main application window.
             parent (QWidget, optional): The parent widget.
         """
-        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting")
-        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before super().__init__")
-        super().__init__(parent)
-        self.logger.debug(f"BaseViewModule {self.module_name} __init__: After super().__init__")
-        
-        self.module_name = module_name
-        self.config = config
-        self.main_window = main_window # Reference to the main application window
+        super().__init__(parent) # Call superclass __init__ first
 
+        self.module_name = module_name # module_name can be set early
+
+        # Initialize self.logger immediately after super() and self.module_name
         if logger_instance:
             self.logger = logger_instance
         else:
-            # If no specific logger is passed, create one for this module
             self.logger = logging.getLogger(f"{__name__}.{self.module_name}")
-            # In a real app, root logger should be configured once at startup by setup_logging.
-            # No need for basicConfig here if main app handles it.
 
-        if not self.config:
-            self.logger.warning(f"{self.module_name}: BRIDealConfig object was not provided during initialization.")
-        
+        # Now it's safe to use self.logger
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting post-logger setup")
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before super().__init__") # No longer needed here
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: After super().__init__") # No longer needed here
+
+        self.config = config
+        self.main_window = main_window # Reference to the main application window
+
         # Basic UI setup (can be overridden by subclasses)
         self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before _init_base_ui")
         self._init_base_ui()
         self.logger.debug(f"BaseViewModule {self.module_name} __init__: After _init_base_ui")
+
+        if not self.config:
+            self.logger.warning(f"{self.module_name}: BRIDealConfig object was not provided during initialization.")
 
         self.logger.info(f"{self.module_name} initialized.")
 

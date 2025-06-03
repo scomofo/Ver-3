@@ -53,8 +53,7 @@ class HomePageDashboardView(BaseViewModule):
                  logger_instance: Optional[logging.Logger] = None,
                  main_window: Optional[QWidget] = None,
                  parent: Optional[QWidget] = None):
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__")
+        # self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__") # Moved after super
         super().__init__(
             module_name=self.MODULE_DISPLAY_NAME,
             config=config,
@@ -62,7 +61,9 @@ class HomePageDashboardView(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__")
+        # It's now safe to use self.logger as it's initialized in BaseViewModule's __init__
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
+        # self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__") # This can be combined or kept for clarity
 
         # Initialize API clients - placeholders for now
         # self.weather_service = WeatherService(api_key=self.config.get("WEATHER_API_KEY"))

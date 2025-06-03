@@ -215,8 +215,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
     def __init__(self, config=None, sharepoint_manager=None, # Removed module_name from signature
                  jd_quote_service=None, customer_linkage_client=None,
                  main_window=None, logger_instance=None, parent=None):
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__")
+        # self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__") # Moved after super
         super().__init__( # Updated super call
             module_name=self.MODULE_DISPLAY_NAME,
             config=config,
@@ -224,7 +223,9 @@ class DealFormView(BaseViewModule): # Changed inheritance
             main_window=main_window,
             parent=parent
         )
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__")
+        # It's now safe to use self.logger as it's initialized in BaseViewModule's __init__
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
+        # self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__") # This can be combined or kept for clarity
         # self.module_name, self.config, self.logger, self.main_window are set by BaseViewModule
 
         self.sharepoint_manager_original_ref = sharepoint_manager
