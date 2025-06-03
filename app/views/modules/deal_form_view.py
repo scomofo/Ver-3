@@ -1487,188 +1487,142 @@ class DealFormView(BaseViewModule): # Changed inheritance
             return False
 
     def generate_email(self) -> bool:
-        self.logger.info(f"Starting email generation process for {self.module_name}...")
-        success = False
-
-        if not self.sharepoint_manager_original_ref:
-            self.logger.error("SharePoint manager (original_ref) is not available. Cannot send email.")
-            self._show_status_message("❌ SharePoint system error. Cannot send email.", 5000)
-            return False
-
-        if not self.sharepoint_manager_original_ref.is_operational:
-            self.logger.warning("SharePoint manager not operational. Cannot send email.")
-            self._show_status_message("⚠️ SharePoint not connected. Cannot send email.", 5000)
-            return False
-
-        self.logger.debug("SharePoint manager is operational.")
+        self.logger.info(f"Starting Outlook deep link email generation for {self.module_name}...")
 
         customer_name_str = self.customer_name.text().strip()
         salesperson_str = self.salesperson.text().strip()
 
         if not customer_name_str:
-             self.logger.warning("Customer name is missing, cannot generate email.")
+             self.logger.warning("Customer name is missing, cannot generate email link.")
              QMessageBox.warning(self, "Missing Data", "Customer name is required for email.")
              self.customer_name.setFocus()
              return False
         if not salesperson_str:
-             self.logger.warning("Salesperson name is missing, cannot generate email.")
+             self.logger.warning("Salesperson name is missing, cannot generate email link.")
              QMessageBox.warning(self, "Missing Data", "Salesperson name is required for email.")
              self.salesperson.setFocus()
              return False
 
-        self.logger.info(f"Customer: '{customer_name_str}', Salesperson: '{salesperson_str}'. Starting data collection for email body.")
+        self.logger.info(f"Customer: '{customer_name_str}', Salesperson: '{salesperson_str}'. Collecting data for email body.")
 
-        # 1. Data for Email
-        self.logger.debug("Collecting equipment items for email...")
-        equipment_items_html = "<ul>"
-        for i in range(self.equipment_list.count()):
-            item_text = self.equipment_list.item(i).text()
-            match = re.match(r'"(.*?)"(?:\s+\(Code:\s*(.*?)\))?\s+STK#(.*?)(?:\s+Order#(.*?))?\s+\$(.*)', item_text)
-            if match:
-                name, _, stock, _, price = match.groups()
-                equipment_items_html += f"<li>{name} (STK#: {stock}) - ${price}</li>"
-            else:
-                self.logger.warning(f"Could not parse equipment item for email: {item_text}")
-                equipment_items_html += f"<li>{item_text} (Unable to parse details)</li>"
-        equipment_items_html += "</ul>"
-        if self.equipment_list.count() == 0: equipment_items_html = "<p>N/A</p>"
-        self.logger.debug(f"Equipment HTML: {equipment_items_html[:100]}...") # Log snippet
+        # 1. Data for Email Body (Plain Text)
+        body_lines = []
+        body_lines.append(f"Customer: {customer_name_str}")
+        body_lines.append(f"Salesperson: {salesperson_str}")
+        body_lines.append(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        body_lines.append("\n--- Equipment ---")
+        if self.equipment_list.count() > 0:
+            for i in range(self.equipment_list.count()):
+                item_text = self.equipment_list.item(i).text()
+                match = re.match(r'"(.*?)"(?:\s+\(Code:\s*(.*?)\))?\s+STK#(.*?)(?:\s+Order#(.*?))?\s+\$(.*)', item_text)
+                if match:
+                    name, _, stock, _, price = match.groups()
+                    body_lines.append(f"- {name} (STK#: {stock}) - ${price}")
+                else:
+                    body_lines.append(f"- {item_text} (parse error)")
+        else:
+            body_lines.append("N/A")
 
-        self.logger.debug("Collecting trade items for email...")
-        trade_items_html = "<ul>"
-        for i in range(self.trade_list.count()):
-            item_text = self.trade_list.item(i).text()
-            match_with_stock = re.match(r'"(.*?)"\s+STK#(.*?)\s+\$(.*)', item_text)
-            match_no_stock = re.match(r'"(.*?)"\s+\$(.*)', item_text)
-            if match_with_stock:
-                name, stock, amount = match_with_stock.groups()
-                trade_items_html += f"<li>{name} (STK#: {stock}) - ${amount}</li>"
-            elif match_no_stock:
-                name, amount = match_no_stock.groups()
-                trade_items_html += f"<li>{name} - ${amount}</li>"
-            else:
-                self.logger.warning(f"Could not parse trade item for email: {item_text}")
-                trade_items_html += f"<li>{item_text} (Unable to parse details)</li>"
-        trade_items_html += "</ul>"
-        if self.trade_list.count() == 0: trade_items_html = "<p>N/A</p>"
-        self.logger.debug(f"Trade HTML: {trade_items_html[:100]}...")
+        body_lines.append("\n--- Trades ---")
+        if self.trade_list.count() > 0:
+            for i in range(self.trade_list.count()):
+                item_text = self.trade_list.item(i).text()
+                match_with_stock = re.match(r'"(.*?)"\s+STK#(.*?)\s+\$(.*)', item_text)
+                match_no_stock = re.match(r'"(.*?)"\s+\$(.*)', item_text)
+                if match_with_stock:
+                    name, stock, amount = match_with_stock.groups()
+                    body_lines.append(f"- {name} (STK#: {stock}) - ${amount}")
+                elif match_no_stock:
+                    name, amount = match_no_stock.groups()
+                    body_lines.append(f"- {name} - ${amount}")
+                else:
+                    body_lines.append(f"- {item_text} (parse error)")
+        else:
+            body_lines.append("N/A")
 
-        self.logger.debug("Collecting part items for email...")
-        part_items_html = "<ul>"
-        for i in range(self.part_list.count()):
-            item_text = self.part_list.item(i).text()
-            match = re.match(r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$', item_text)
-            if match:
-                qty, num, name, _, _ = match.groups()
-                part_items_html += f"<li>{qty}x {num} - {name}</li>"
-            else:
-                self.logger.warning(f"Could not parse part item for email: {item_text}")
-                part_items_html += f"<li>{item_text} (Unable to parse details)</li>"
-        part_items_html += "</ul>"
-        if self.part_list.count() == 0: part_items_html = "<p>N/A</p>"
-        self.logger.debug(f"Part HTML: {part_items_html[:100]}...")
+        body_lines.append("\n--- Parts ---")
+        if self.part_list.count() > 0:
+            for i in range(self.part_list.count()):
+                item_text = self.part_list.item(i).text()
+                match = re.match(r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$', item_text)
+                if match:
+                    qty, num, name, _, _ = match.groups()
+                    body_lines.append(f"- {qty}x {num} - {name}")
+                else:
+                    body_lines.append(f"- {item_text} (parse error)")
+        else:
+            body_lines.append("N/A")
 
-        deal_notes_str = self.deal_notes_textedit.toPlainText().strip().replace('\n', '<br>')
-        self.logger.debug(f"Deal notes for email (first 100 chars): {deal_notes_str[:100]}")
+        body_lines.append("\n--- Work Order / Options ---")
+        body_lines.append(f"Work Order Required: {'Yes' if self.work_order_required.isChecked() else 'No'}")
+        body_lines.append(f"Charge To: {self.work_order_charge_to.text().strip() or 'N/A'}")
+        body_lines.append(f"Est. Hours: {self.work_order_hours.text().strip() or 'N/A'}")
+        body_lines.append(f"Paid: {'Yes' if self.paid_checkbox.isChecked() else 'No'}")
 
-        # 2. HTML Body Construction
-        self.logger.debug("Constructing HTML email body.")
-        html_body = f"""
-        <html>
-            <head>
-                <style>
-                    body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; }}
-                    h2 {{ color: #0056b3; border-bottom: 1px solid #ccc; padding-bottom: 5px; }}
-                    h3 {{ color: #007bff; margin-top: 20px; }}
-                    ul {{ list-style-type: disc; margin-left: 20px; }}
-                    li {{ margin-bottom: 5px; }}
-                    .section {{ margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 5px; background-color: #f9f9f9;}}
-                    .notes {{ white-space: pre-wrap; }}
-                </style>
-            </head>
-            <body>
-                <h2>Deal Summary</h2>
-                <div class="section">
-                    <p><strong>Customer:</strong> {customer_name_str}</p>
-                    <p><strong>Salesperson:</strong> {salesperson_str}</p>
-                    <p><strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-                </div>
+        deal_notes_str = self.deal_notes_textedit.toPlainText().strip()
+        body_lines.append("\n--- Notes ---")
+        body_lines.append(deal_notes_str if deal_notes_str else "N/A")
 
-                <div class="section">
-                    <h3>Equipment</h3>
-                    {equipment_items_html}
-                </div>
+        plain_text_body = "\n".join(body_lines)
+        self.logger.debug(f"Plain text email body constructed (length: {len(plain_text_body)}). First 200 chars: {plain_text_body[:200]}")
 
-                <div class="section">
-                    <h3>Trades</h3>
-                    {trade_items_html}
-                </div>
-
-                <div class="section">
-                    <h3>Parts</h3>
-                    {part_items_html}
-                </div>
-
-                <div class="section">
-                    <h3>Work Order / Options</h3>
-                    <p><strong>Work Order Required:</strong> {'Yes' if self.work_order_required.isChecked() else 'No'}</p>
-                    <p><strong>Charge To:</strong> {self.work_order_charge_to.text().strip() or 'N/A'}</p>
-                    <p><strong>Est. Hours:</strong> {self.work_order_hours.text().strip() or 'N/A'}</p>
-                    <p><strong>Paid:</strong> {'Yes' if self.paid_checkbox.isChecked() else 'No'}</p>
-                </div>
-
-                <div class="section notes">
-                    <h3>Notes</h3>
-                    <p>{deal_notes_str if deal_notes_str else "N/A"}</p>
-                </div>
-
-                <p><small><em>This is an automated message generated by the BRIDeal Application.</em></small></p>
-            </body>
-        </html>
-        """
-        self.logger.debug(f"HTML Body constructed (length: {len(html_body)}). First 200 chars: {html_body[:200]}")
-
-        # 3. Recipients and Subject
+        # 2. Recipients and Subject
         subject = f"New Deal Information for {customer_name_str}"
         self.logger.info(f"Email subject: '{subject}'")
 
-        recipients = []
+        recipient_str = ""
         if self.config and hasattr(self.config, 'get'):
             default_recipient_from_config = self.config.get("DEFAULT_DEAL_EMAIL_RECIPIENT")
             self.logger.debug(f"DEFAULT_DEAL_EMAIL_RECIPIENT from config: {default_recipient_from_config}")
-            if default_recipient_from_config:
-                if isinstance(default_recipient_from_config, str):
-                    recipients = [default_recipient_from_config]
-                elif isinstance(default_recipient_from_config, list):
-                    recipients = default_recipient_from_config
-                else:
-                    self.logger.warning(f"DEFAULT_DEAL_EMAIL_RECIPIENT in config is not a string or list: {default_recipient_from_config}. Using placeholder.")
+            if default_recipient_from_config and isinstance(default_recipient_from_config, str):
+                recipient_str = default_recipient_from_config
+            elif default_recipient_from_config: # Could be a list
+                 self.logger.warning(f"DEFAULT_DEAL_EMAIL_RECIPIENT from config is not a string: {default_recipient_from_config}. Using first element if list, else placeholder.")
+                 if isinstance(default_recipient_from_config, list) and default_recipient_from_config:
+                     recipient_str = default_recipient_from_config[0] # Take first if list
+                 else: # Fallback if not string or empty list
+                    recipient_str = "placeholder@example.com"
 
-        if not recipients:
+        if not recipient_str:
             self.logger.warning("DEFAULT_DEAL_EMAIL_RECIPIENT not found or invalid in config. Using placeholder: placeholder@example.com")
             self._show_status_message("⚠️ Email recipient not configured. Using placeholder. Please update config.", 7000)
-            recipients = ['placeholder@example.com'] # Important fallback
+            recipient_str = "placeholder@example.com"
 
-        self.logger.info(f"Attempting to send email to recipients: {recipients}")
+        self.logger.info(f"Target recipient for Outlook link: {recipient_str}")
+
+        # 3. Construct and Open Outlook Deep Link
+        encoded_subject = urllib.parse.quote(subject)
+        encoded_body = urllib.parse.quote(plain_text_body)
+        # Note: Outlook deep link 'to' parameter typically expects a single email or comma-separated if multiple, but behavior can vary.
+        # For simplicity, using the (potentially comma-separated) string directly.
+        encoded_to = urllib.parse.quote(recipient_str)
+
+        outlook_url = f"https://outlook.office.com/mail/deeplink/compose?to={encoded_to}&subject={encoded_subject}&body={encoded_body}"
+
+        self.logger.info(f"Constructed Outlook deep link (body length: {len(encoded_body)}). Opening URL...")
+        # Avoid logging the full URL if body is very long and makes logs noisy.
+        # self.logger.debug(f"Outlook URL: {outlook_url}")
 
         try:
-            success = self.sharepoint_manager_original_ref.send_html_email(
-                recipients=recipients,
-                subject=subject,
-                html_body=html_body
-            )
-            if success:
-                self._show_status_message(f"✅ Email sent successfully to {', '.join(recipients)}.", 5000)
-                self.logger.info(f"Email successfully sent for customer '{customer_name_str}' to {recipients}.")
+            opened = webbrowser.open(outlook_url)
+            if opened:
+                self._show_status_message("🚀 Opening email in Outlook (web)... Please check your browser.", 5000)
+                self.logger.info("Successfully opened Outlook deep link in browser.")
+                return True
             else:
-                self._show_status_message("❌ Failed to send email. Check logs.", 7000)
-                self.logger.error(f"Failed to send email for customer '{customer_name_str}' via SharePoint manager. Manager returned False.")
+                self._show_status_message("⚠️ Could not open email link in browser. Link copied to clipboard.", 7000)
+                self.logger.warning("webbrowser.open returned False. Attempting to copy link to clipboard.")
+                try:
+                    QApplication.clipboard().setText(outlook_url)
+                    self.logger.info("Outlook deep link copied to clipboard.")
+                except Exception as clip_err:
+                    self.logger.error(f"Failed to copy Outlook link to clipboard: {clip_err}")
+                    self._show_status_message("⚠️ Could not open email or copy link. Please check logs.", 7000)
+                return False
         except Exception as e:
-            self.logger.error(f"Exception during email sending for customer '{customer_name_str}': {e}", exc_info=True)
-            self._show_status_message(f"❌ Error sending email: {e}", 7000)
-            success = False
-
-        return success
+            self.logger.error(f"Exception during webbrowser.open for Outlook link: {e}", exc_info=True)
+            self._show_status_message(f"❌ Error opening email link: {e}", 7000)
+            return False
 
     def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
