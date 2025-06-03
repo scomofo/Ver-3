@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QListWidget, QListWidgetItem, QCheckBox, QComboBox,
     QFormLayout, QSizePolicy, QMessageBox, QCompleter, QFileDialog,
     QApplication, QDialog, QDialogButtonBox, QFrame, QScrollArea,
-    QSpacerItem, QGroupBox, QSpinBox, QInputDialog
+    QSpacerItem, QGroupBox, QSpinBox, QInputDialog, QStyle
 )
 from PyQt6.QtGui import QFont, QIcon, QDoubleValidator, QPixmap
 
