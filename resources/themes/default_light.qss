@@ -86,22 +86,27 @@ QTextEdit {
 }
 
 QGroupBox {
-    font-size: 12pt; /* H3 conceptual size */
+    font-size: 12pt;
     font-weight: bold;
     color: #343a40;
-    border: 1px solid #dee2e6; /* @borderColor */
-    border-radius: 8px; /* Slightly larger radius for group boxes */
-    margin-top: 16px; /* Space above the groupbox title */
-    padding: 16px; /* Internal padding for content, after title */
-    background-color: #f8f9fa; /* @surfaceColor */
+    background-color: #ffffff; /* Card background */
+    border: 1px solid #e0e0e0; /* Softer border for card */
+    border-radius: 12px;       /* Card border radius */
+    margin: 12px;              /* Spacing around the card */
+    padding-top: 30px;         /* Top padding for content, allowing space for title */
+    padding-right: 16px;       /* Internal padding */
+    padding-bottom: 16px;      /* Internal padding */
+    padding-left: 16px;        /* Internal padding */
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    padding: 0px 8px 8px 8px; /* Padding around the title, bottom padding pushes content down */
-    left: 8px; /* Position title slightly inset */
-    /* background-color: transparent; Ensure title doesn't get QGroupBox background */
+    padding: 0px 8px;      /* Padding for the title text (top/bottom 0 for default vertical alignment, left/right 8) */
+    position: relative;    /* Needed for 'top' and 'left' to work reliably */
+    top: 8px;              /* Pixels from the top of the QGroupBox margin box to the top of the title's box */
+    left: 12px;            /* Pixels from the left of the QGroupBox margin box to the left of the title's box */
+    /* background-color: transparent; /* Optional: if title needs transparent background */
 }
 
 QTableWidget {
