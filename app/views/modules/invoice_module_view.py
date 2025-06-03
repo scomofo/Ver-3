@@ -151,12 +151,6 @@ class InvoiceModuleView(BaseViewModule):
         
         self.setLayout(main_layout)
     
-    async def _dummy_async_task(self, param1: str, param2: int):
-        self.logger.info(f"InvoiceModuleView: _dummy_async_task started with '{param1}' and {param2}.")
-        await asyncio.sleep(2) # Simulate some async work
-        self.logger.info("InvoiceModuleView: _dummy_async_task finished after sleep.")
-        return {"type": "SUCCESS", "body": {"message": "Dummy task completed successfully", "param1": param1, "param2": param2}}
-
     def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
         """
         Initialize the invoice view with a quote ID and dealer account number.
@@ -213,25 +207,22 @@ class InvoiceModuleView(BaseViewModule):
         # )
         # self.logger.info(f"InvoiceModuleView: AsyncWorker instance created: {async_worker}")
 
-        self.logger.info("InvoiceModuleView: !!! USING DUMMY ASYNC TASK FOR TESTING AsyncWorker !!!")
+        self.logger.info(f"InvoiceModuleView: Attempting to create AsyncWorker for get_quote_details_via_api with quote_id: {self.current_quote_id}, dealer_account_no: {self.current_dealer_account_no}")
         async_worker = AsyncWorker(
-            self._dummy_async_task,
-            "test_param_string",
-            12345
+            self.jd_quote_service.get_quote_details_via_api,
+            self.current_quote_id,
+            self.current_dealer_account_no
         )
-        # The existing logging for instance creation, signal connection, and start should follow this new instantiation.
-        # If those logs were part of the commented block, ensure they are active for the dummy task worker.
-        # For example, ensure these lines are present and apply to the new async_worker:
-        self.logger.info(f"InvoiceModuleView: AsyncWorker instance (for dummy task) created: {async_worker}")
+        self.logger.info(f"InvoiceModuleView: AsyncWorker instance created: {async_worker}")
 
-        self.logger.info("InvoiceModuleView: Connecting AsyncWorker signals (for dummy task)...")
+        self.logger.info("InvoiceModuleView: Connecting AsyncWorker signals...")
         async_worker.result_ready.connect(self._handle_quote_details_result)
         async_worker.error_occurred.connect(self._handle_quote_details_error)
-        self.logger.info("InvoiceModuleView: AsyncWorker signals (for dummy task) connected.")
+        self.logger.info("InvoiceModuleView: AsyncWorker signals connected.")
 
-        self.logger.info("InvoiceModuleView: Attempting to start AsyncWorker (for dummy task).")
+        self.logger.info("InvoiceModuleView: Attempting to start AsyncWorker.")
         async_worker.start()
-        self.logger.info("InvoiceModuleView: AsyncWorker (for dummy task) start method called.")
+        self.logger.info("InvoiceModuleView: AsyncWorker start method called.")
     
     def _handle_quote_details_result(self, response_data: dict):
         """Handle the result of the quote details API call."""
