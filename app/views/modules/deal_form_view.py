@@ -215,6 +215,8 @@ class DealFormView(BaseViewModule): # Changed inheritance
     def __init__(self, config=None, sharepoint_manager=None, # Removed module_name from signature
                  jd_quote_service=None, customer_linkage_client=None,
                  main_window=None, logger_instance=None, parent=None):
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__")
         super().__init__( # Updated super call
             module_name=self.MODULE_DISPLAY_NAME,
             config=config,
@@ -222,6 +224,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
             main_window=main_window,
             parent=parent
         )
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__")
         # self.module_name, self.config, self.logger, self.main_window are set by BaseViewModule
 
         self.sharepoint_manager_original_ref = sharepoint_manager
@@ -606,6 +609,10 @@ class DealFormView(BaseViewModule): # Changed inheritance
         # outer_layout = QVBoxLayout(self) # REMOVED - BaseViewModule provides base_main_layout
         # outer_layout.setContentsMargins(0, 0, 0, 0)
 
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: Starting")
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: MRO: {type(self).__mro__}")
+        has_get_content_container = hasattr(self, 'get_content_container')
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: hasattr(self, 'get_content_container'): {has_get_content_container}")
         content_container = self.get_content_container()
         if not content_container.layout(): # Ensure content_container has a layout
             content_container_layout = QVBoxLayout(content_container)

@@ -34,7 +34,10 @@ class BaseViewModule(QWidget):
             main_window (QMainWindow, optional): Reference to the main application window.
             parent (QWidget, optional): The parent widget.
         """
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting")
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before super().__init__")
         super().__init__(parent)
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: After super().__init__")
         
         self.module_name = module_name
         self.config = config
@@ -52,11 +55,14 @@ class BaseViewModule(QWidget):
             self.logger.warning(f"{self.module_name}: BRIDealConfig object was not provided during initialization.")
         
         # Basic UI setup (can be overridden by subclasses)
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before _init_base_ui")
         self._init_base_ui()
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: After _init_base_ui")
 
         self.logger.info(f"{self.module_name} initialized.")
 
     def _init_base_ui(self):
+        self.logger.debug(f"BaseViewModule {self.module_name} _init_base_ui: Starting")
         # Main layout for the BaseViewModule itself
         self.base_main_layout = QVBoxLayout(self)
         self.base_main_layout.setContentsMargins(0, 0, 0, 0)
@@ -84,6 +90,7 @@ class BaseViewModule(QWidget):
 
         # 2. Content Container Widget
         self._content_container = QWidget(self)
+        self.logger.debug(f"BaseViewModule {self.module_name} _init_base_ui: _content_container created")
         self._content_container.setObjectName("BaseViewModule_ContentContainer")
         self._content_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         # Subclasses will typically set a layout on this container.
@@ -176,6 +183,7 @@ class BaseViewModule(QWidget):
         return layout if layout else QHBoxLayout() # Return existing or new temp one
 
     def get_content_container(self) -> QWidget:
+        self.logger.debug(f"BaseViewModule {self.module_name} get_content_container: Called")
         return self._content_container
 
     def get_base_footer_widget(self) -> QFrame:

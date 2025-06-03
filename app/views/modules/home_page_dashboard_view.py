@@ -53,6 +53,8 @@ class HomePageDashboardView(BaseViewModule):
                  logger_instance: Optional[logging.Logger] = None,
                  main_window: Optional[QWidget] = None,
                  parent: Optional[QWidget] = None):
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__")
         super().__init__(
             module_name=self.MODULE_DISPLAY_NAME,
             config=config,
@@ -60,6 +62,7 @@ class HomePageDashboardView(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__")
 
         # Initialize API clients - placeholders for now
         # self.weather_service = WeatherService(api_key=self.config.get("WEATHER_API_KEY"))
@@ -100,7 +103,11 @@ class HomePageDashboardView(BaseViewModule):
         # title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # main_layout.addWidget(title_label) # REMOVE THIS
 
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: Starting")
         # Get the content container from BaseViewModule
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: MRO: {type(self).__mro__}")
+        has_get_content_container = hasattr(self, 'get_content_container')
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: hasattr(self, 'get_content_container'): {has_get_content_container}")
         content_container = self.get_content_container()
         if not content_container.layout():
             content_container_layout = QVBoxLayout(content_container)
