@@ -249,3 +249,29 @@ QLineEdit::clear-button:hover {
 QLineEdit::clear-button:pressed {
     background-color: #aaaaaa;
 }
+
+/* HomePageDashboardView Card Styling */
+QFrame#DashboardSectionFrame {
+    background-color: #ffffff;       /* White background for the card */
+    border: 1px solid #e0e0e0;       /* Softer border */
+    border-radius: 12px;             /* Rounded corners */
+    margin: 0px;                     /* Margins are handled by the parent QGridLayout's spacing */
+    padding: 18px;                   /* Uniform padding inside the card */
+}
+
+/* Styling for titles within dashboard cards (assumed to be the first QLabel child of the frame) */
+QFrame#DashboardSectionFrame > QLabel:first-child {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #2c3e50;                  /* Dark blue/gray for section titles */
+    padding-bottom: 10px;            /* Space below the title */
+    /* For text alignment, use label.setAlignment(Qt.AlignmentFlag.AlignCenter) in Python code */
+}
+
+/* Styling for general data labels within dashboard cards */
+/* This ensures consistency if not overridden by more specific label styles */
+QFrame#DashboardSectionFrame QLabel {
+    font-size: 10pt; /* Standard body text size from foundational styles */
+    color: #212529;  /* Primary text color from foundational styles */
+    background-color: transparent; /* Ensure no unexpected background from parent card */
+}
