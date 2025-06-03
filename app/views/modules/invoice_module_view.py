@@ -198,14 +198,22 @@ class InvoiceModuleView(BaseViewModule):
         self._show_status_message("Fetching quote details...")
         
         # Fetch quote details using AsyncWorker
+        self.logger.info(f"InvoiceModuleView: Attempting to create AsyncWorker for get_quote_details_via_api with quote_id: {self.current_quote_id}, dealer_account_no: {self.current_dealer_account_no}")
         async_worker = AsyncWorker(
             self.jd_quote_service.get_quote_details_via_api,
             self.current_quote_id,
             self.current_dealer_account_no
         )
+        self.logger.info(f"InvoiceModuleView: AsyncWorker instance created: {async_worker}")
+
+        self.logger.info("InvoiceModuleView: Connecting AsyncWorker signals...")
         async_worker.result_ready.connect(self._handle_quote_details_result)
-        async_worker.error_occurred.connect(self._handle_quote_details_error) # Assuming it will be adapted
+        async_worker.error_occurred.connect(self._handle_quote_details_error)
+        self.logger.info("InvoiceModuleView: AsyncWorker signals connected.")
+
+        self.logger.info("InvoiceModuleView: Attempting to start AsyncWorker.")
         async_worker.start()
+        self.logger.info("InvoiceModuleView: AsyncWorker start method called.")
     
     def _handle_quote_details_result(self, response_data: dict):
         """Handle the result of the quote details API call."""
