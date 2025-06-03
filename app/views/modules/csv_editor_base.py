@@ -291,6 +291,7 @@ class CsvEditorBase(BaseViewModule):
             return None
 
         graph_api_base_url = getattr(actual_sp_manager, 'graph_base_url', "https://graph.microsoft.com/v1.0")
+        self.logger.info(f"DEBUG: Initial actual_sp_manager.site_id: '{actual_sp_manager.site_id}' (type: {type(actual_sp_manager.site_id)})")
         graph_site_id_temp = actual_sp_manager.site_id
         while graph_site_id_temp.endswith(':'):
             graph_site_id_temp = graph_site_id_temp[:-1]
