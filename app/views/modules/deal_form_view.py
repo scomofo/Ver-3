@@ -1341,49 +1341,360 @@ class DealFormView(BaseViewModule): # Changed inheritance
         except Exception as e: self.logger.error(f"Error populating from draft: {e}", exc_info=True); QMessageBox.critical(self, "Populate Error", f"Error populating form:\n{e}")
 
     def generate_csv_action(self):
-        self.logger.info(f"Starting CSV generation for {self.module_name}...")
-        if not self.validate_form_for_csv(): self._show_status_message("CSV Gen cancelled: Validation failed.", 3000); return False
-        csv_data = self.build_csv_data()
-        if not csv_data or len(csv_data.splitlines()) < 2: QMessageBox.warning(self, "CSV Export Error", "No data to export."); return False
-        return self._save_as_local_csv(csv_data)
+        self.logger.info(f"Starting SharePoint Excel export action for {self.module_name}...")
 
-    def build_csv_data(self) -> str:
-        csv_buffer = io.StringIO(); writer = csv.writer(csv_buffer, quoting=csv.QUOTE_ALL)
-        headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount', 'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2', 'Salesperson', 'Email Date', 'Status', 'Timestamp', 'UniqueID', 'DealNotes']
-        writer.writerow(headers)
+        if not self.validate_form_for_csv():
+            self.logger.warning("Form validation failed for SharePoint Excel export.")
+            self._show_status_message("Excel Export cancelled: Validation failed.", 3000)
+            return False
+
+        self.logger.info("Form validation successful. Proceeding to prepare data.")
+        csv_data_list = self.build_csv_data() # build_csv_data already logs its details
+
+        if not csv_data_list:
+            QMessageBox.warning(self, "Excel Export Error", "No data to export.")
+            self.logger.warning("No data prepared by build_csv_data for Excel export.")
+            return False
+
+        self.logger.debug(f"Data prepared for SharePoint: {csv_data_list}")
+
+        target_sheet = "Sheet1" # Placeholder, make configurable if needed
+        self.logger.info(f"Target SharePoint sheet for append: {target_sheet}")
+
+        if self.sharepoint_manager_original_ref and self.sharepoint_manager_original_ref.is_operational:
+            self.logger.info(f"Attempting to update SharePoint Excel sheet '{target_sheet}' with {len(csv_data_list)} record(s).")
+            try:
+                success = self.sharepoint_manager_original_ref.update_excel_data(
+                    new_data=csv_data_list,
+                    target_sheet_name_for_append=target_sheet
+                )
+                if success:
+                    self._show_status_message("✅ Successfully exported deal data to SharePoint Excel.", 5000)
+                    self.logger.info(f"Successfully exported {len(csv_data_list)} record(s) to SharePoint Excel sheet '{target_sheet}'.")
+                    return True
+                else:
+                    self._show_status_message("❌ Failed to export deal data to SharePoint Excel. Check logs.", 7000)
+                    self.logger.error(f"Failed to export to SharePoint Excel sheet '{target_sheet}'. Manager returned False.")
+                    return False
+            except Exception as e:
+                self.logger.error(f"Exception during SharePoint Excel export to sheet '{target_sheet}': {e}", exc_info=True)
+                self._show_status_message(f"❌ Error during SharePoint Excel export: {e}", 7000)
+                return False
+        else:
+            self.logger.warning("SharePoint not operational. Falling back to local CSV save.")
+            self._show_status_message("⚠️ SharePoint not connected. Cannot export to Excel. Saving locally...", 4000)
+
+            if csv_data_list:
+                output = io.StringIO()
+                # Ensure writer uses fieldnames from the first dictionary, if available
+                if not csv_data_list: # Should not happen if we get here, but defensive
+                     self.logger.error("csv_data_list became empty before local save attempt.")
+                     return False
+                field_names = list(csv_data_list[0].keys())
+                self.logger.debug(f"Field names for local CSV fallback: {field_names}")
+                writer = csv.DictWriter(output, fieldnames=field_names, quoting=csv.QUOTE_ALL)
+                writer.writeheader()
+                writer.writerows(csv_data_list)
+                csv_string_for_local_save = output.getvalue()
+                output.close()
+
+                local_save_success = self._save_as_local_csv(csv_string_for_local_save)
+                if local_save_success:
+                    self.logger.info("Successfully saved data as local CSV due to SharePoint unavailability.")
+                else:
+                    self.logger.error("Failed to save data as local CSV after SharePoint unavailability.")
+                return local_save_success
+            else: # csv_data_list was empty
+                self.logger.warning("No data to save locally as fallback.")
+                return False
+
+    def build_csv_data(self) -> List[Dict[str, Any]]:
+        self.logger.info("Preparing data for SharePoint export...")
+        headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount',
+                   'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2',
+                   'Salesperson', 'Email Date', 'Status', 'Timestamp', 'UniqueID', 'DealNotes']
+        self.logger.debug(f"Using headers for SharePoint data: {headers}")
+
         paid_status = "YES" if self.paid_checkbox.isChecked() else "NO"
         deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
-        deal_notes = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ')
-        writer.writerow([paid_status, self.customer_name.text().strip(), "", "", "", "", "", "", "", self.salesperson.text().strip(), datetime.now().strftime("%Y-%m-%d"), deal_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), str(uuid.uuid4()), deal_notes])
-        return csv_buffer.getvalue()
+        deal_notes_text = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ')
+
+        # For now, we are creating a single row of summary data.
+        # If multi-line CSV for items was intended for SharePoint, this needs more significant changes.
+        # The original build_csv_data created one summary line after headers.
+        # We will replicate that structure as a single dictionary in a list.
+
+        row_data = {
+            'Payment': paid_status,
+            'CustomerName': self.customer_name.text().strip(),
+            'Equipment': "", # Placeholder, original CSV had this empty for the summary row
+            'Stock Number': "", # Placeholder
+            'Amount': "", # Placeholder
+            'Trade': "", # Placeholder
+            'Attached to stk#': "", # Placeholder
+            'Trade STK#': "", # Placeholder
+            'Amount2': "", # Placeholder
+            'Salesperson': self.salesperson.text().strip(),
+            'Email Date': datetime.now().strftime("%Y-%m-%d"),
+            'Status': deal_status,
+            'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'UniqueID': str(uuid.uuid4()),
+            'DealNotes': deal_notes_text
+        }
+        # Ensure all header keys are present in the row_data, even if empty
+        for header in headers:
+            if header not in row_data:
+                row_data[header] = ""
+
+        self.logger.info(f"Prepared 1 record for SharePoint export with keys: {list(row_data.keys())}")
+        return [row_data]
 
     def _save_as_local_csv(self, csv_data_string: str, default_dir: Optional[str] = None) -> bool:
-        if not csv_data_string: self.logger.warning("No CSV data to save."); return False
+        if not csv_data_string:
+            self.logger.warning("No CSV data provided to _save_as_local_csv.")
+            return False
+
         default_dir = default_dir or self._data_path
         customer_name = self.customer_name.text().strip() or "UnnamedDeal"
         sanitized_name = re.sub(r'[^\w\s-]', '', customer_name).strip().replace(' ', '_') or "UnnamedDeal"
         default_filename = f"{sanitized_name}_Deal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        file_name, selected_filter = QFileDialog.getSaveFileName(self, "Save CSV", os.path.join(default_dir, default_filename), "CSV Files (*.csv);;All Files (*)")
-        if not file_name: self.logger.info("Local CSV save cancelled."); self._show_status_message("Local CSV save cancelled.", 2000); return False
-        if not file_name.lower().endswith('.csv') and selected_filter == "CSV Files (*.csv)": file_name += '.csv'
-        try:
-            with open(file_name, 'w', newline='', encoding='utf-8-sig') as f: f.write(csv_data_string)
-            self.logger.info(f"CSV saved locally: {file_name}"); self._show_status_message(f"CSV saved: {os.path.basename(file_name)}", 5000)
-            return True
-        except Exception as e: self.logger.error(f"Error saving CSV locally: {e}", exc_info=True); QMessageBox.critical(self, "Save Error", f"Could not save CSV:\n{e}"); return False
 
-    def generate_email(self):
-        self.logger.info("Email generation placeholder"); self._show_status_message("Email generation not yet implemented", 3000); return True
+        self.logger.debug(f"Default directory for local CSV save: {default_dir}")
+        self.logger.debug(f"Default filename for local CSV save: {default_filename}")
+
+        file_name, selected_filter = QFileDialog.getSaveFileName(self, "Save CSV Locally", os.path.join(default_dir, default_filename), "CSV Files (*.csv);;All Files (*)")
+
+        if not file_name:
+            self.logger.info("Local CSV save dialog cancelled by user.")
+            self._show_status_message("Local CSV save cancelled.", 2000)
+            return False
+
+        # Ensure .csv extension if not present and filter was CSV
+        if not file_name.lower().endswith('.csv') and selected_filter == "CSV Files (*.csv)":
+            file_name += '.csv'
+            self.logger.debug(f"Appended .csv extension, final filename: {file_name}")
+
+        self.logger.info(f"Attempting to save CSV data locally to: {file_name}")
+        try:
+            with open(file_name, 'w', newline='', encoding='utf-8-sig') as f:
+                f.write(csv_data_string)
+            self.logger.info(f"Successfully saved CSV locally to: {file_name}")
+            self._show_status_message(f"CSV saved locally: {os.path.basename(file_name)}", 5000)
+            return True
+        except Exception as e:
+            self.logger.error(f"Error saving CSV file locally to '{file_name}': {e}", exc_info=True)
+            QMessageBox.critical(self, "Save Error", f"Could not save CSV file locally:\n{e}")
+            return False
+
+    def generate_email(self) -> bool:
+        self.logger.info(f"Starting email generation process for {self.module_name}...")
+        success = False
+
+        if not self.sharepoint_manager_original_ref:
+            self.logger.error("SharePoint manager (original_ref) is not available. Cannot send email.")
+            self._show_status_message("❌ SharePoint system error. Cannot send email.", 5000)
+            return False
+
+        if not self.sharepoint_manager_original_ref.is_operational:
+            self.logger.warning("SharePoint manager not operational. Cannot send email.")
+            self._show_status_message("⚠️ SharePoint not connected. Cannot send email.", 5000)
+            return False
+
+        self.logger.debug("SharePoint manager is operational.")
+
+        customer_name_str = self.customer_name.text().strip()
+        salesperson_str = self.salesperson.text().strip()
+
+        if not customer_name_str:
+             self.logger.warning("Customer name is missing, cannot generate email.")
+             QMessageBox.warning(self, "Missing Data", "Customer name is required for email.")
+             self.customer_name.setFocus()
+             return False
+        if not salesperson_str:
+             self.logger.warning("Salesperson name is missing, cannot generate email.")
+             QMessageBox.warning(self, "Missing Data", "Salesperson name is required for email.")
+             self.salesperson.setFocus()
+             return False
+
+        self.logger.info(f"Customer: '{customer_name_str}', Salesperson: '{salesperson_str}'. Starting data collection for email body.")
+
+        # 1. Data for Email
+        self.logger.debug("Collecting equipment items for email...")
+        equipment_items_html = "<ul>"
+        for i in range(self.equipment_list.count()):
+            item_text = self.equipment_list.item(i).text()
+            match = re.match(r'"(.*?)"(?:\s+\(Code:\s*(.*?)\))?\s+STK#(.*?)(?:\s+Order#(.*?))?\s+\$(.*)', item_text)
+            if match:
+                name, _, stock, _, price = match.groups()
+                equipment_items_html += f"<li>{name} (STK#: {stock}) - ${price}</li>"
+            else:
+                self.logger.warning(f"Could not parse equipment item for email: {item_text}")
+                equipment_items_html += f"<li>{item_text} (Unable to parse details)</li>"
+        equipment_items_html += "</ul>"
+        if self.equipment_list.count() == 0: equipment_items_html = "<p>N/A</p>"
+        self.logger.debug(f"Equipment HTML: {equipment_items_html[:100]}...") # Log snippet
+
+        self.logger.debug("Collecting trade items for email...")
+        trade_items_html = "<ul>"
+        for i in range(self.trade_list.count()):
+            item_text = self.trade_list.item(i).text()
+            match_with_stock = re.match(r'"(.*?)"\s+STK#(.*?)\s+\$(.*)', item_text)
+            match_no_stock = re.match(r'"(.*?)"\s+\$(.*)', item_text)
+            if match_with_stock:
+                name, stock, amount = match_with_stock.groups()
+                trade_items_html += f"<li>{name} (STK#: {stock}) - ${amount}</li>"
+            elif match_no_stock:
+                name, amount = match_no_stock.groups()
+                trade_items_html += f"<li>{name} - ${amount}</li>"
+            else:
+                self.logger.warning(f"Could not parse trade item for email: {item_text}")
+                trade_items_html += f"<li>{item_text} (Unable to parse details)</li>"
+        trade_items_html += "</ul>"
+        if self.trade_list.count() == 0: trade_items_html = "<p>N/A</p>"
+        self.logger.debug(f"Trade HTML: {trade_items_html[:100]}...")
+
+        self.logger.debug("Collecting part items for email...")
+        part_items_html = "<ul>"
+        for i in range(self.part_list.count()):
+            item_text = self.part_list.item(i).text()
+            match = re.match(r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$', item_text)
+            if match:
+                qty, num, name, _, _ = match.groups()
+                part_items_html += f"<li>{qty}x {num} - {name}</li>"
+            else:
+                self.logger.warning(f"Could not parse part item for email: {item_text}")
+                part_items_html += f"<li>{item_text} (Unable to parse details)</li>"
+        part_items_html += "</ul>"
+        if self.part_list.count() == 0: part_items_html = "<p>N/A</p>"
+        self.logger.debug(f"Part HTML: {part_items_html[:100]}...")
+
+        deal_notes_str = self.deal_notes_textedit.toPlainText().strip().replace('\n', '<br>')
+        self.logger.debug(f"Deal notes for email (first 100 chars): {deal_notes_str[:100]}")
+
+        # 2. HTML Body Construction
+        self.logger.debug("Constructing HTML email body.")
+        html_body = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; }}
+                    h2 {{ color: #0056b3; border-bottom: 1px solid #ccc; padding-bottom: 5px; }}
+                    h3 {{ color: #007bff; margin-top: 20px; }}
+                    ul {{ list-style-type: disc; margin-left: 20px; }}
+                    li {{ margin-bottom: 5px; }}
+                    .section {{ margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 5px; background-color: #f9f9f9;}}
+                    .notes {{ white-space: pre-wrap; }}
+                </style>
+            </head>
+            <body>
+                <h2>Deal Summary</h2>
+                <div class="section">
+                    <p><strong>Customer:</strong> {customer_name_str}</p>
+                    <p><strong>Salesperson:</strong> {salesperson_str}</p>
+                    <p><strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                </div>
+
+                <div class="section">
+                    <h3>Equipment</h3>
+                    {equipment_items_html}
+                </div>
+
+                <div class="section">
+                    <h3>Trades</h3>
+                    {trade_items_html}
+                </div>
+
+                <div class="section">
+                    <h3>Parts</h3>
+                    {part_items_html}
+                </div>
+
+                <div class="section">
+                    <h3>Work Order / Options</h3>
+                    <p><strong>Work Order Required:</strong> {'Yes' if self.work_order_required.isChecked() else 'No'}</p>
+                    <p><strong>Charge To:</strong> {self.work_order_charge_to.text().strip() or 'N/A'}</p>
+                    <p><strong>Est. Hours:</strong> {self.work_order_hours.text().strip() or 'N/A'}</p>
+                    <p><strong>Paid:</strong> {'Yes' if self.paid_checkbox.isChecked() else 'No'}</p>
+                </div>
+
+                <div class="section notes">
+                    <h3>Notes</h3>
+                    <p>{deal_notes_str if deal_notes_str else "N/A"}</p>
+                </div>
+
+                <p><small><em>This is an automated message generated by the BRIDeal Application.</em></small></p>
+            </body>
+        </html>
+        """
+        self.logger.debug(f"HTML Body constructed (length: {len(html_body)}). First 200 chars: {html_body[:200]}")
+
+        # 3. Recipients and Subject
+        subject = f"New Deal Information for {customer_name_str}"
+        self.logger.info(f"Email subject: '{subject}'")
+
+        recipients = []
+        if self.config and hasattr(self.config, 'get'):
+            default_recipient_from_config = self.config.get("DEFAULT_DEAL_EMAIL_RECIPIENT")
+            self.logger.debug(f"DEFAULT_DEAL_EMAIL_RECIPIENT from config: {default_recipient_from_config}")
+            if default_recipient_from_config:
+                if isinstance(default_recipient_from_config, str):
+                    recipients = [default_recipient_from_config]
+                elif isinstance(default_recipient_from_config, list):
+                    recipients = default_recipient_from_config
+                else:
+                    self.logger.warning(f"DEFAULT_DEAL_EMAIL_RECIPIENT in config is not a string or list: {default_recipient_from_config}. Using placeholder.")
+
+        if not recipients:
+            self.logger.warning("DEFAULT_DEAL_EMAIL_RECIPIENT not found or invalid in config. Using placeholder: placeholder@example.com")
+            self._show_status_message("⚠️ Email recipient not configured. Using placeholder. Please update config.", 7000)
+            recipients = ['placeholder@example.com'] # Important fallback
+
+        self.logger.info(f"Attempting to send email to recipients: {recipients}")
+
+        try:
+            success = self.sharepoint_manager_original_ref.send_html_email(
+                recipients=recipients,
+                subject=subject,
+                html_body=html_body
+            )
+            if success:
+                self._show_status_message(f"✅ Email sent successfully to {', '.join(recipients)}.", 5000)
+                self.logger.info(f"Email successfully sent for customer '{customer_name_str}' to {recipients}.")
+            else:
+                self._show_status_message("❌ Failed to send email. Check logs.", 7000)
+                self.logger.error(f"Failed to send email for customer '{customer_name_str}' via SharePoint manager. Manager returned False.")
+        except Exception as e:
+            self.logger.error(f"Exception during email sending for customer '{customer_name_str}': {e}", exc_info=True)
+            self._show_status_message(f"❌ Error sending email: {e}", 7000)
+            success = False
+
+        return success
 
     def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
-        if not self.validate_form_for_csv(): self._show_status_message("Generate All cancelled: Validation failed.", 3000); return
-        csv_ok = self.generate_csv_action()
-        email_ok = False
-        if csv_ok: email_ok = self.generate_email()
-        else: self.logger.warning("CSV generation failed, skipping email.")
-        if csv_ok and email_ok: self._show_status_message("'Generate All': CSV and Email processes completed.", 5000)
-        elif csv_ok: self._show_status_message("'Generate All': CSV done. Check email status.", 4000)
+        if not self.validate_form_for_csv():
+            self._show_status_message("Generate All cancelled: Form validation failed.", 3000)
+            return
+
+        self.logger.info("Step 1: Exporting to SharePoint Excel...")
+        excel_export_ok = self.generate_csv_action() # This now exports to SharePoint Excel
+
+        email_sent_ok = False
+        if excel_export_ok:
+            self.logger.info("SharePoint Excel export successful. Proceeding to email generation...")
+            email_sent_ok = self.generate_email()
+        else:
+            self.logger.warning("SharePoint Excel export failed. Email will not be sent as part of 'Generate All'.")
+            # User would have already received a specific error from generate_csv_action
+
+        if excel_export_ok and email_sent_ok:
+            self._show_status_message("✅ 'Generate All': Data exported to SharePoint and Email sent.", 6000)
+        elif excel_export_ok:
+            self._show_status_message("✅ Data exported to SharePoint. ⚠️ Email sending failed or was skipped. Check logs.", 7000)
+        else:
+            # Specific error for Excel export failure should have been shown by generate_csv_action.
+            # This message is a general fallback if generate_csv_action didn't show one or for clarity.
+            self._show_status_message("❌ 'Generate All': SharePoint Excel export failed. Email not attempted.", 7000)
 
     def reset_form_no_confirm(self):
         self.customer_name.clear(); self.salesperson.clear()
