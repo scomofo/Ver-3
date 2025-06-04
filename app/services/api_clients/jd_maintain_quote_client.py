@@ -46,11 +46,11 @@ class JDMaintainQuoteApiClient:
 
     @property
     def is_operational(self) -> bool:
-        return self.auth_manager.is_configured()
+        return self.auth_manager.is_operational # Changed from is_configured
 
     async def _get_headers(self) -> Dict[str, str]:
-        if not self.auth_manager.is_configured():
-            raise BRIDealException("JD Auth Manager not configured.", ErrorSeverity.CRITICAL)
+        if not self.auth_manager.is_operational: # Changed from is_configured
+            raise BRIDealException("JD Auth Manager not configured or not operational.", ErrorSeverity.CRITICAL) # Updated message
 
         token_result = await self.auth_manager.get_access_token()
         if token_result.is_failure():
@@ -196,8 +196,8 @@ class JDMaintainQuoteApiClient:
 
 
     async def health_check(self) -> Result[bool, BRIDealException]:
-        if not self.is_operational:
-            return Result.failure(BRIDealException("Auth manager not configured for Maintain Quote API.", ErrorSeverity.WARNING))
+        if not self.is_operational: # This now correctly checks auth_manager.is_operational
+            return Result.failure(BRIDealException("JDMaintainQuoteApiClient is not operational (auth manager issue or configuration).", ErrorSeverity.WARNING)) # Updated message
 
         # Use a simple GET endpoint, e.g., trying to get details for a non-existent/test quote.
         # A 404 would still indicate the API is reachable and auth is working.

@@ -26,15 +26,22 @@ class JDQuoteDataService:
         """
         Asynchronously initializes the service by creating and setting up the API client.
         """
-        if not self.auth_manager.is_configured():
-            logger.warning("JDQuoteDataService: Auth Manager is not configured. Service will not be operational.")
+        if not self.auth_manager.is_operational: # Changed from is_configured
+            logger.warning("JDQuoteDataService: Auth Manager is not operational. Service will not be operational.")
             self._is_operational = False
             return
 
         try:
             self.client = await get_jd_quote_data_client(self.config, self.auth_manager)
-            self._is_operational = True # Assume client is operational if created and auth_manager is configured
-            logger.info("JDQuoteDataService initialized successfully and is operational.")
+            if self.client and self.client.is_operational: # Added check for client.is_operational
+                self._is_operational = True
+                logger.info("JDQuoteDataService initialized successfully and is operational.")
+            else:
+                self._is_operational = False
+                if not self.client:
+                    logger.warning("JDQuoteDataService: Client creation failed.")
+                else:
+                    logger.warning(f"JDQuoteDataService: Client is not operational. Auth operational: {self.auth_manager.is_operational}")
         except Exception as e:
             logger.exception(f"JDQuoteDataService: Failed to initialize JDQuoteDataApiClient: {e}")
             self.client = None

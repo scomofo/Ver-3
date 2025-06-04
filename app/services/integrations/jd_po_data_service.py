@@ -26,15 +26,22 @@ class JDPODataService:
         """
         Asynchronously initializes the service by creating and setting up the API client.
         """
-        if not self.auth_manager.is_configured():
-            logger.warning("JDPODataService: Auth Manager is not configured. Service will not be operational.")
+        if not self.auth_manager.is_operational: # Changed from is_configured
+            logger.warning("JDPODataService: Auth Manager is not operational. Service will not be operational.")
             self._is_operational = False
             return
 
         try:
             self.client = await get_jd_po_data_client(self.config, self.auth_manager)
-            self._is_operational = True
-            logger.info("JDPODataService initialized successfully and is operational.")
+            if self.client and self.client.is_operational: # Added check for client.is_operational
+                self._is_operational = True
+                logger.info("JDPODataService initialized successfully and is operational.")
+            else:
+                self._is_operational = False
+                if not self.client:
+                    logger.warning("JDPODataService: Client creation failed.")
+                else:
+                    logger.warning(f"JDPODataService: Client is not operational. Auth operational: {self.auth_manager.is_operational}")
         except Exception as e:
             logger.exception(f"JDPODataService: Failed to initialize JDPODataApiClient: {e}")
             self.client = None

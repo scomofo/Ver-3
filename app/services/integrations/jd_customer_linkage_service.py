@@ -26,15 +26,22 @@ class JDCustomerLinkageService:
         """
         Asynchronously initializes the service by creating and setting up the API client.
         """
-        if not self.auth_manager.is_configured():
-            logger.warning("JDCustomerLinkageService: Auth Manager is not configured. Service will not be operational.")
+        if not self.auth_manager.is_operational: # Changed from is_configured
+            logger.warning("JDCustomerLinkageService: Auth Manager is not operational. Service will not be operational.")
             self._is_operational = False
             return
 
         try:
             self.client = await get_jd_customer_linkage_client(self.config, self.auth_manager)
-            self._is_operational = True
-            logger.info("JDCustomerLinkageService initialized successfully and is operational.")
+            if self.client and self.client.is_operational: # Added check for client.is_operational
+                self._is_operational = True
+                logger.info("JDCustomerLinkageService initialized successfully and is operational.")
+            else:
+                self._is_operational = False
+                if not self.client:
+                    logger.warning("JDCustomerLinkageService: Client creation failed.")
+                else:
+                    logger.warning(f"JDCustomerLinkageService: Client is not operational. Auth operational: {self.auth_manager.is_operational}")
         except Exception as e:
             logger.exception(f"JDCustomerLinkageService: Failed to initialize JDCustomerLinkageApiClient: {e}")
             self.client = None

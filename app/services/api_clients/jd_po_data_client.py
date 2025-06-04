@@ -50,15 +50,15 @@ class JDPODataApiClient:
     @property
     def is_operational(self) -> bool:
         """Check if the API client is operational (primarily, if auth is configured)."""
-        return self.auth_manager.is_configured()
+        return self.auth_manager.is_operational # Changed from is_configured
 
     async def _get_headers(self) -> Dict[str, str]:
         """Retrieve headers, including the authorization token."""
-        if not self.auth_manager.is_configured():
+        if not self.auth_manager.is_operational: # Changed from is_configured
             raise BRIDealException(
-                message="JD Auth Manager not configured.",
+                message="JD Auth Manager not configured or not operational.", # Updated message
                 severity=ErrorSeverity.CRITICAL,
-                details="Cannot make API calls without client_id and client_secret."
+                details="Cannot make API calls without client_id and client_secret or if auth manager is not operational."
             )
 
         token_result = await self.auth_manager.get_access_token()
@@ -214,9 +214,9 @@ class JDPODataApiClient:
 
     async def health_check(self) -> Result[bool, BRIDealException]:
         """Performs a health check of the PO Data API client."""
-        if not self.is_operational:
+        if not self.is_operational: # This now correctly checks auth_manager.is_operational
             return Result.failure(
-                BRIDealException("Auth manager not configured for PO Data API.", severity=ErrorSeverity.WARNING)
+                BRIDealException("JDPODataApiClient is not operational (auth manager issue or configuration).", severity=ErrorSeverity.WARNING) # Updated message
             )
 
         # Ping a simple GET endpoint, e.g., get_purchase_orders with a limit.

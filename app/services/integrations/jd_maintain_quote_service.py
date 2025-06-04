@@ -26,19 +26,24 @@ class JDMaintainQuoteService:
         """
         Asynchronously initializes the service by creating and setting up the API client.
         """
-        if not self.auth_manager.is_configured():
-            logger.warning("JDMaintainQuoteService: Auth Manager is not configured. Service will not be operational.")
+        if not self.auth_manager.is_operational: # Changed from is_configured
+            logger.warning("JDMaintainQuoteService: Auth Manager is not operational. Service will not be operational.")
             self._is_operational = False
             return
 
         try:
             # The factory get_jd_maintain_quote_client is async, so we should await it
             self.client = await get_jd_maintain_quote_client(self.config, self.auth_manager)
-            # Client's is_operational property depends on auth_manager being configured, which we already checked.
-            # If client creation itself can fail or has its own checks, that should be handled.
-            # For now, assume client is operational if auth_manager is and client is created.
-            self._is_operational = True
-            logger.info("JDMaintainQuoteService initialized successfully and is operational.")
+            if self.client and self.client.is_operational: # Added check for client.is_operational
+                self._is_operational = True
+                logger.info("JDMaintainQuoteService initialized successfully and is operational.")
+            else:
+                self._is_operational = False
+                if not self.client:
+                    logger.warning("JDMaintainQuoteService: Client creation failed (get_jd_maintain_quote_client returned None or raised before assignment).")
+                else:
+                    # This path implies client was created but client.is_operational is False
+                    logger.warning(f"JDMaintainQuoteService: Client created but is not operational. Auth status: {self.auth_manager.is_operational}. Client internal operational status: {self.client.is_operational}")
         except Exception as e:
             logger.exception(f"JDMaintainQuoteService: Failed to initialize JDMaintainQuoteApiClient: {e}")
             self.client = None
