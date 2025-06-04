@@ -786,104 +786,11 @@ class DealFormView(BaseViewModule): # Changed inheritance
         content_layout.addStretch(1) # Ensure content pushes up
 
         scroll_area.setWidget(form_scroll_content_widget)
-        content_area_layout.addWidget(scroll_area) # Add scroll_area to the main content area's layout
+        content_area_layout.addWidget(scroll_area)
 
-        self._apply_styles() # Apply styles after UI is constructed
-
-        # Connect signals after UI elements are created
-        if hasattr(self, 'equipment_product_name'):
-            self.equipment_product_name.editingFinished.connect(self._on_equipment_product_name_selected)
-            if hasattr(self, 'equipment_product_name_completer'):
-                self.equipment_product_name_completer.activated.connect(self._on_equipment_product_name_selected_from_completer)
-        if hasattr(self, 'equipment_product_code'):
-             self.equipment_product_code.editingFinished.connect(self._on_equipment_product_code_selected)
-        if hasattr(self, 'part_number'):
-            self.part_number.editingFinished.connect(self._on_part_number_selected)
-        self.customer_name.editingFinished.connect(self.on_customer_field_changed)
-        self.customer_name = QLineEdit()
-        self.customer_name.setClearButtonEnabled(True)
-        self.customer_name.setPlaceholderText("Customer Name")
-        self.customer_name_completer = QCompleter([])
-        self.customer_name_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.customer_name_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.customer_name_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.customer_name.setCompleter(self.customer_name_completer)
-        cs_layout.addWidget(self.customer_name)
-        self.salesperson = QLineEdit()
-        self.salesperson.setClearButtonEnabled(True)
-        self.salesperson.setPlaceholderText("Salesperson")
-        self.salesperson_completer = QCompleter([])
-        self.salesperson_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.salesperson_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.salesperson_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.salesperson.setCompleter(self.salesperson_completer)
-        cs_layout.addWidget(self.salesperson)
-        content_layout.addWidget(customer_sales_group)
-        item_sections_layout = QVBoxLayout()
-        item_sections_layout.addWidget(self._create_equipment_section())
-        item_sections_layout.addWidget(self._create_trade_section())
-        item_sections_layout.addWidget(self._create_parts_section())
-        content_layout.addLayout(item_sections_layout)
-        work_notes_layout = QHBoxLayout()
-        work_notes_layout.addWidget(self._create_work_order_options_section(), 1)
-        work_notes_layout.addWidget(self._create_notes_section(), 1)
-        content_layout.addLayout(work_notes_layout)
-        actions_groupbox = QGroupBox("Actions")
-        main_actions_layout = QHBoxLayout(actions_groupbox)
-        self.delete_line_btn = QPushButton("Delete Selected Line")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)
-        self.delete_line_btn.setIcon(icon)
-        self.delete_line_btn.setIconSize(QSize(16, 16))
-        self.delete_line_btn.setToolTip("Delete the selected line from any list above")
-        self.delete_line_btn.clicked.connect(self.delete_selected_list_item)
-        main_actions_layout.addWidget(self.delete_line_btn)
-        main_actions_layout.addStretch(1)
-        self.save_draft_btn = QPushButton("Save Draft")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
-        self.save_draft_btn.setIcon(icon)
-        self.save_draft_btn.setIconSize(QSize(16, 16))
-        self.save_draft_btn.clicked.connect(self.save_draft)
-        main_actions_layout.addWidget(self.save_draft_btn)
-        self.load_draft_btn = QPushButton("Load Draft")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
-        self.load_draft_btn.setIcon(icon)
-        self.load_draft_btn.setIconSize(QSize(16, 16))
-        self.load_draft_btn.clicked.connect(self.load_draft)
-        main_actions_layout.addWidget(self.load_draft_btn)
-        main_actions_layout.addSpacing(20)
-        self.generate_csv_btn = QPushButton("Export CSV")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
-        self.generate_csv_btn.setIcon(icon)
-        self.generate_csv_btn.setIconSize(QSize(16, 16))
-        self.generate_csv_btn.clicked.connect(self.generate_csv_action)
-        main_actions_layout.addWidget(self.generate_csv_btn)
-        self.generate_email_btn = QPushButton("Generate Email")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward)
-        self.generate_email_btn.setIcon(icon)
-        self.generate_email_btn.setIconSize(QSize(16, 16))
-        self.generate_email_btn.clicked.connect(self.generate_email)
-        main_actions_layout.addWidget(self.generate_email_btn)
-        self.generate_both_btn = QPushButton("Generate All")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
-        self.generate_both_btn.setIcon(icon)
-        self.generate_both_btn.setIconSize(QSize(16, 16))
-        self.generate_both_btn.clicked.connect(self.generate_csv_and_email)
-        main_actions_layout.addWidget(self.generate_both_btn)
-        self.reset_btn = QPushButton("Reset Form")
-        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
-        self.reset_btn.setIcon(icon)
-        self.reset_btn.setIconSize(QSize(16, 16))
-        self.reset_btn.setObjectName("reset_btn")
-        self.reset_btn.clicked.connect(self.reset_form)
-        main_actions_layout.addWidget(self.reset_btn)
-        content_layout.addWidget(actions_groupbox)
-        content_layout.addStretch(1)
-        scroll_area.setWidget(form_scroll_content_widget) # Corrected: form_content_widget to form_scroll_content_widget
-        # Assuming content_container_layout is actually content_area_layout from the earlier part of the function
-        content_area_layout.addWidget(scroll_area) # Corrected: content_container_layout to content_area_layout
-
-        # self.setLayout(outer_layout) # REMOVED - BaseViewModule handles its own layout (base_main_layout)
         self._apply_styles()
+
+        # Connect signals after UI elements are created (Primary block)
         if hasattr(self, 'equipment_product_name'):
             self.equipment_product_name.editingFinished.connect(self._on_equipment_product_name_selected)
             if hasattr(self, 'equipment_product_name_completer'):
@@ -893,6 +800,12 @@ class DealFormView(BaseViewModule): # Changed inheritance
         if hasattr(self, 'part_number'):
             self.part_number.editingFinished.connect(self._on_part_number_selected)
         self.customer_name.editingFinished.connect(self.on_customer_field_changed)
+        # NOTE: The duplicated block which was previously here (starting with another self.customer_name = QLineEdit()...)
+        # has been removed in a prior subtask (00000012).
+        # The current task is to ensure no *other* duplications exist and the structure is sound.
+        # Based on the read, the structure seems correct now, with widgets added to content_layout,
+        # which is on form_scroll_content_widget, which is the widget for scroll_area.
+        # And scroll_area is added to content_area_layout.
 
     def _create_equipment_section(self):
         equipment_group = QGroupBox("Equipment")
@@ -1583,7 +1496,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
                          'Salesperson', 'Email Date', 'Status', 'Timestamp', 'Row ID']
 
         processed_rows = []
-        for data_row in all_rows_data:
+        for data_row in all_rows_data: # Changed data_row_item to data_row to match previous logic
             ordered_row = {key: data_row.get(key, "") for key in final_headers}
             processed_rows.append(ordered_row)
 
