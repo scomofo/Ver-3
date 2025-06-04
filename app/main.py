@@ -595,6 +595,7 @@ class MainWindow(QMainWindow):
        try:
            return JDExternalQuoteView(
                config=self.config,
+               auth_manager=self.jd_auth_manager_service, # Added this line
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,
                logger_instance=logging.getLogger("JDExternalQuoteViewLogger")
@@ -608,6 +609,7 @@ class MainWindow(QMainWindow):
        try:
            return InvoiceModuleView(
                config=self.config,
+               auth_manager=self.jd_auth_manager_service, # Added this line
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,
                logger_instance=logging.getLogger("InvoiceModuleViewLogger")
