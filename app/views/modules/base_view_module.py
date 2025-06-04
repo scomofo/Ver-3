@@ -35,7 +35,21 @@ class BaseViewModule(QWidget):
             main_window (QMainWindow, optional): Reference to the main application window.
             parent (QWidget, optional): The parent widget.
         """
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting") # This would error, logger not set
+        # Need to set module_name first if used in a preliminary logger, or pass logger_instance
+
+        # For the purpose of this request, we assume module_name is available for logging
+        # If a logger instance is passed, it could be used. Otherwise, need to be careful.
+        # Given the existing structure, module_name is set *after* super, then logger.
+        # The most straightforward way to add logs *around* super is if the logger
+        # is configured externally or if module_name is handled carefully.
+
+        # Let's assume a temporary logger or careful placement:
+        # If we had a preliminary logger: preliminary_logger.debug(...)
+        # print(f"DEBUG: BaseViewModule {module_name} __init__: Before super().__init__") # For pre-logger state
+
         super().__init__(parent) # Call superclass __init__ first
+        # print(f"DEBUG: BaseViewModule {module_name} __init__: After super().__init__") # For pre-logger state
 
         self.module_name = module_name # module_name can be set early
 
@@ -46,9 +60,12 @@ class BaseViewModule(QWidget):
             self.logger = logging.getLogger(f"{__name__}.{self.module_name}")
 
         # Now it's safe to use self.logger
-        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting post-logger setup")
-        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before super().__init__") # No longer needed here
-        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: After super().__init__") # No longer needed here
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting") # Modified to match request
+        # The lines below were part of the original request but are problematic:
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before super().__init__")
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: After super().__init__")
+        # These cannot use self.logger because it's initialized after super().__init__() and after self.module_name.
+        # Adding them would require using a different logger or changing initialization order.
 
         self.config = config
         self.main_window = main_window # Reference to the main application window

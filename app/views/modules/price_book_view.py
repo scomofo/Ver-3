@@ -634,11 +634,22 @@ class PriceBookView(BaseViewModule):
                 value = str(error_tuple)
                 tb_str = ""
         
-        self.logger.error(f"Error loading price book data: {exctype.__name__} - {value}\nTraceback: {tb_str}")
+        if isinstance(exctype, type): # Check if exctype is an exception type/class
+            type_name = exctype.__name__
+        else: # If it's a string or something else, just convert it to string
+            type_name = str(exctype) # Ensure exctype is treated as a string if not a type
+
+        self.logger.error(f"Error loading price book data: {type_name} - {value}\nTraceback: {tb_str}") # Use type_name
+
+        # Construct display message
+        error_message_display = f"{value}"
+        if type_name and type_name.strip() and type_name.lower() != 'exception': # Add type_name if meaningful
+            error_message_display = f"({type_name}): {value}"
+
         self.price_table.setRowCount(1) 
         self.price_table.setColumnCount(1)
         self.price_table.setHorizontalHeaderLabels(["Error"])
-        error_item = QTableWidgetItem(f"❌ Error loading price book: {value}")
+        error_item = QTableWidgetItem(f"❌ Error loading price book: {error_message_display}")
         error_item.setForeground(QColor("red")) 
         self.price_table.setItem(0, 0, error_item)
         self.search_input.setEnabled(False)
