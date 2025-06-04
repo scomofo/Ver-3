@@ -10,13 +10,19 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog,
     QInputDialog
 )
+import asyncio
 from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from app.views.modules.base_view_module import BaseViewModule
-from app.core.config import BRIDealConfig, get_config
+from app.core.config import BRIDealConfig # Assuming get_config is not used directly here for config instance
 from app.core.threading import Worker
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
+# New service imports
+from app.services.integrations.jd_auth_manager import JDAuthManager # Assuming auth_manager is passed
+from app.services.integrations.jd_quote_data_service import create_jd_quote_data_service, JDQuoteDataService
+from app.services.integrations.jd_po_data_service import create_jd_po_data_service, JDPODataService
+
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +31,39 @@ class InvoiceModuleView(BaseViewModule):
     Module for displaying and processing invoice information based on John Deere quotes.
     """
     
+    # Added auth_manager to __init__
     def __init__(self, config: BRIDealConfig, 
+                 auth_manager: JDAuthManager, # Added auth_manager
                  logger_instance: Optional[logging.Logger] = None,
                  main_window: Optional[QWidget] = None,
                  jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
                  parent: Optional[QWidget] = None):
         super().__init__(
             module_name="Invoice Module",
-            config=config,
+            config=config, # config is already a parameter
             logger_instance=logger_instance,
             main_window=main_window,
             parent=parent
         )
         
-        self.jd_quote_service = jd_quote_integration_service
+        self.config = config # Storing config if needed by _initialize_services
+        self.auth_manager = auth_manager # Storing auth_manager
+        self.jd_quote_service = jd_quote_integration_service # This is the old service
         self.thread_pool = QThreadPool.globalInstance()
-        
+
+        # Initialize new services
+        self.jd_quote_data_service: Optional[JDQuoteDataService] = None
+        self.jd_po_data_service: Optional[JDPODataService] = None
+
+        # Schedule async initialization
+        # This requires an asyncio event loop to be running and integrated with PyQt.
+        # If not, this specific call might fail or not work as expected.
+        # A common pattern is to use qasync or call this from an already async context.
+        try:
+            asyncio.create_task(self._initialize_services())
+        except RuntimeError as e:
+            self.logger.error(f"Failed to create task for _initialize_services, event loop might not be running: {e}")
+
         self.current_quote_id = None
         self.current_dealer_account_no = None
         self.quote_details = None
@@ -131,6 +154,17 @@ class InvoiceModuleView(BaseViewModule):
         self.fetch_quote_btn.setToolTip("Fetch the details for the current quote")
         self.fetch_quote_btn.clicked.connect(self._fetch_quote_details)
         
+        # New buttons for PDF viewing
+        self.view_proposal_pdf_btn = QPushButton("View Proposal PDF")
+        self.view_proposal_pdf_btn.setToolTip("Fetch and view the proposal PDF for the current quote")
+        self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked) # Wrapper for async
+        self.view_proposal_pdf_btn.setEnabled(False) # Enable when quote_id is available
+
+        self.view_po_pdf_btn = QPushButton("View PO PDF")
+        self.view_po_pdf_btn.setToolTip("Fetch and view the PO PDF for the current quote")
+        self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked) # Wrapper for async
+        self.view_po_pdf_btn.setEnabled(False) # Enable when quote_id is available
+
         self.print_invoice_btn = QPushButton("Print Invoice")
         self.print_invoice_btn.setToolTip("Print the current invoice")
         self.print_invoice_btn.clicked.connect(self._print_invoice)
@@ -142,6 +176,8 @@ class InvoiceModuleView(BaseViewModule):
         self.save_pdf_btn.setEnabled(False)  # Disabled until data is loaded
         
         buttons_layout.addWidget(self.fetch_quote_btn)
+        buttons_layout.addWidget(self.view_proposal_pdf_btn) # Added new button
+        buttons_layout.addWidget(self.view_po_pdf_btn) # Added new button
         buttons_layout.addStretch(1)
         buttons_layout.addWidget(self.print_invoice_btn)
         buttons_layout.addWidget(self.save_pdf_btn)
@@ -167,10 +203,33 @@ class InvoiceModuleView(BaseViewModule):
         
         # Auto-fetch details if we have a valid quote ID and account number
         if quote_id and dealer_account_no:
-            self._fetch_quote_details()
-    
+            self._fetch_quote_details() # This uses the old service
+            self.view_proposal_pdf_btn.setEnabled(True)
+            self.view_po_pdf_btn.setEnabled(True)
+
+    async def _initialize_services(self):
+        # This method would be called by the application's event loop or a dedicated task runner
+        self.logger.info("Initializing JD services...")
+        if self.auth_manager and self.auth_manager.is_configured(): # is_operational check might be better if auth_manager has it
+            try:
+                self.jd_quote_data_service = await create_jd_quote_data_service(self.config, self.auth_manager)
+                if self.jd_quote_data_service and not self.jd_quote_data_service.is_operational:
+                    self.logger.warning("JD Quote Data Service failed to initialize or is not operational.")
+                else:
+                    self.logger.info("JD Quote Data Service initialized.")
+
+                self.jd_po_data_service = await create_jd_po_data_service(self.config, self.auth_manager)
+                if self.jd_po_data_service and not self.jd_po_data_service.is_operational:
+                    self.logger.warning("JD PO Data Service failed to initialize or is not operational.")
+                else:
+                    self.logger.info("JD PO Data Service initialized.")
+            except Exception as e:
+                self.logger.error(f"Exception during service initialization: {e}", exc_info=True)
+        else:
+            self.logger.warning("Auth manager not available or not configured. JD Services will not be initialized.")
+
     def _fetch_quote_details(self):
-        """Fetch the details for the current quote."""
+        """Fetch the details for the current quote using the old service."""
         if not self.current_quote_id or not self.current_dealer_account_no:
             # If we don't have a quote ID, prompt for one
             quote_id, ok = QInputDialog.getText(self, "Enter Quote ID", "Please enter the quote ID:")
@@ -186,8 +245,10 @@ class InvoiceModuleView(BaseViewModule):
             self.current_quote_id = quote_id
             self.current_dealer_account_no = dealer_account
             self.quote_id_field.setText(quote_id)
+            self.view_proposal_pdf_btn.setEnabled(True) # Enable new buttons
+            self.view_po_pdf_btn.setEnabled(True)
         
-        # Check if JD quote service is available
+        # Check if JD quote service is available (old service)
         if not self.jd_quote_service or not self.jd_quote_service.is_operational:
             QMessageBox.warning(self, "Service Unavailable", 
                               "John Deere Quote API integration is not available.")
@@ -667,3 +728,117 @@ class InvoiceModuleView(BaseViewModule):
         return "Invoice"
     
     def get_icon_name(self): return "invoice_icon.png"
+
+    # --- New methods for service integration ---
+
+    def _handle_view_proposal_pdf_clicked(self):
+        if self.current_quote_id:
+            # Assuming an asyncio event loop is running (e.g. via qasync)
+            asyncio.create_task(self.handle_view_proposal_pdf(self.current_quote_id))
+        else:
+            QMessageBox.warning(self, "No Quote", "Please load a quote first.")
+            self.logger.warning("View Proposal PDF clicked but no current_quote_id.")
+
+    async def handle_view_proposal_pdf(self, quote_id: str):
+        self.logger.info(f"Handling view proposal PDF for quote_id: {quote_id}")
+        if self.jd_quote_data_service and self.jd_quote_data_service.is_operational:
+            self._show_status_message(f"Fetching proposal PDF for {quote_id}...")
+            result = await self.jd_quote_data_service.get_proposal_pdf(quote_id)
+            if result.is_success():
+                pdf_data = result.value
+                if isinstance(pdf_data, bytes):
+                    self.logger.info(f"Proposal PDF data received (binary). Length: {len(pdf_data)}")
+                    # Placeholder for displaying or saving PDF
+                    # For example, save to a temporary file and open
+                    temp_pdf_path = os.path.join(self.config.cache_dir, f"proposal_{quote_id}.pdf")
+                    try:
+                        with open(temp_pdf_path, "wb") as f:
+                            f.write(pdf_data)
+                        self.logger.info(f"Proposal PDF saved to {temp_pdf_path}")
+                        QMessageBox.information(self, "Proposal PDF", f"Proposal PDF downloaded to {temp_pdf_path}. Displaying is not yet implemented.")
+                        # os.startfile(temp_pdf_path) # For Windows
+                    except Exception as e:
+                        self.logger.error(f"Error saving/opening temporary PDF: {e}")
+                        QMessageBox.critical(self, "PDF Error", f"Could not save or open PDF: {e}")
+                elif isinstance(pdf_data, dict) and pdf_data.get("url"): # If it's a JSON with a URL
+                    self.logger.info(f"Proposal PDF URL received: {pdf_data.get('url')}")
+                    QMessageBox.information(self, "Proposal PDF", f"PDF available at URL: {pdf_data.get('url')}. Opening URL is not yet implemented.")
+                    # QDesktopServices.openUrl(QUrl(pdf_data.get('url')))
+                else:
+                    self.logger.info(f"Proposal PDF data received (JSON or other): {pdf_data}")
+                    QMessageBox.information(self, "Proposal PDF Data", f"Data received: {str(pdf_data)[:200]}...")
+                self._show_status_message(f"Proposal PDF for {quote_id} processed.")
+            else:
+                error = result.error()
+                self.logger.error(f"Error fetching proposal PDF: {error.message} - {error.details}")
+                QMessageBox.critical(self, "Error", f"Error fetching proposal PDF: {error.message}")
+                self._show_status_message(f"Error fetching proposal PDF: {error.message}", timeout=10000)
+        else:
+            self.logger.warning("JD Quote Data Service is not available for viewing proposal PDF.")
+            QMessageBox.warning(self, "Service Unavailable", "JD Quote Data Service is not available.")
+            self._show_status_message("JD Quote Data Service is not available.", timeout=10000)
+
+    def _handle_view_po_pdf_clicked(self):
+        if self.current_quote_id:
+            asyncio.create_task(self.handle_view_po_pdf(self.current_quote_id))
+        else:
+            QMessageBox.warning(self, "No Quote", "Please load a quote first.")
+            self.logger.warning("View PO PDF clicked but no current_quote_id.")
+
+    async def handle_view_po_pdf(self, quote_id: str): # Assuming PO PDF is linked to quote_id
+        self.logger.info(f"Handling view PO PDF for quote_id: {quote_id}")
+        if self.jd_po_data_service and self.jd_po_data_service.is_operational:
+            self._show_status_message(f"Fetching PO PDF for {quote_id}...")
+            result = await self.jd_po_data_service.get_po_pdf(quote_id) # get_po_pdf uses quote_id
+            if result.is_success():
+                pdf_data = result.value
+                if isinstance(pdf_data, bytes):
+                    self.logger.info(f"PO PDF data received (binary). Length: {len(pdf_data)}")
+                    temp_pdf_path = os.path.join(self.config.cache_dir, f"po_{quote_id}.pdf")
+                    try:
+                        with open(temp_pdf_path, "wb") as f:
+                            f.write(pdf_data)
+                        self.logger.info(f"PO PDF saved to {temp_pdf_path}")
+                        QMessageBox.information(self, "PO PDF", f"PO PDF downloaded to {temp_pdf_path}. Displaying is not yet implemented.")
+                    except Exception as e:
+                        self.logger.error(f"Error saving/opening temporary PO PDF: {e}")
+                        QMessageBox.critical(self, "PDF Error", f"Could not save or open PO PDF: {e}")
+                elif isinstance(pdf_data, dict) and pdf_data.get("url"):
+                     self.logger.info(f"PO PDF URL received: {pdf_data.get('url')}")
+                     QMessageBox.information(self, "PO PDF", f"PDF available at URL: {pdf_data.get('url')}. Opening URL is not yet implemented.")
+                else:
+                    self.logger.info(f"PO PDF data received (JSON or other): {pdf_data}")
+                    QMessageBox.information(self, "PO PDF Data", f"Data received: {str(pdf_data)[:200]}...")
+                self._show_status_message(f"PO PDF for {quote_id} processed.")
+            else:
+                error = result.error()
+                self.logger.error(f"Error fetching PO PDF: {error.message} - {error.details}")
+                QMessageBox.critical(self, "Error", f"Error fetching PO PDF: {error.message}")
+                self._show_status_message(f"Error fetching PO PDF: {error.message}", timeout=10000)
+        else:
+            self.logger.warning("JD PO Data Service is not available for viewing PO PDF.")
+            QMessageBox.warning(self, "Service Unavailable", "JD PO Data Service is not available.")
+            self._show_status_message("JD PO Data Service is not available.", timeout=10000)
+
+    # It's good practice to provide a way to clean up these services
+    async def close_services(self):
+        self.logger.info("Closing JD services...")
+        if self.jd_quote_data_service:
+            await self.jd_quote_data_service.close()
+            self.logger.info("JD Quote Data Service closed.")
+        if self.jd_po_data_service:
+            await self.jd_po_data_service.close()
+            self.logger.info("JD PO Data Service closed.")
+
+    # Override closeEvent or add to existing cleanup method if the main app calls it
+    def closeEvent(self, event):
+        # This is a PyQt specific method.
+        # If the application uses a different mechanism for cleanup, adjust accordingly.
+        self.logger.info("InvoiceModuleView closeEvent triggered. Closing services.")
+        try:
+            # If an asyncio loop is running, schedule it. Otherwise, this might need adjustment.
+            asyncio.create_task(self.close_services())
+        except RuntimeError as e:
+            self.logger.error(f"RuntimeError during close_services task creation (event loop may be stopped): {e}")
+            # Fallback or synchronous close if possible and necessary, though services are async
+        super().closeEvent(event) # Call base class closeEvent
