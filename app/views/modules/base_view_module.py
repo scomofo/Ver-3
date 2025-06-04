@@ -1,5 +1,6 @@
 # BRIDeal_refactored/app/views/modules/base_view_module.py
 import logging
+from typing import Optional # Added for Optional type hint
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -202,6 +203,11 @@ class BaseViewModule(QWidget):
             self.module_title_label.setText(title)
         else:
             self.logger.warning("module_title_label not found in BaseViewModule header.")
+
+    def get_icon_name(self) -> Optional[str]:
+        # Subclasses should override this to provide their specific icon filename
+        self.logger.debug(f"BaseViewModule {self.module_name} get_icon_name: Called, returning None (subclass should implement).")
+        return None
 
 # Example Usage (for testing this base class standalone)
 if __name__ == '__main__':

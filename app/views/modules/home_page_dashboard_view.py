@@ -91,35 +91,24 @@ class HomePageDashboardView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the user interface of the dashboard."""
-        # main_layout = QVBoxLayout(self) # REMOVE THIS - Handled by BaseViewModule
-        # main_layout.setContentsMargins(15, 15, 15, 15)
-        # main_layout.setSpacing(25)
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: Starting UI initialization.")
 
-        # --- Title is handled by BaseViewModule's header ---
-        # title_label = QLabel(self.MODULE_DISPLAY_NAME) # REMOVE THIS
-        # title_font = QFont("Arial", 18, QFont.Weight.Bold)
-        # title_label.setFont(title_font)
-        # title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # main_layout.addWidget(title_label) # REMOVE THIS
-
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: Starting")
         # Get the content container from BaseViewModule
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: MRO: {type(self).__mro__}")
-        has_get_content_container = hasattr(self, 'get_content_container')
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: hasattr(self, 'get_content_container'): {has_get_content_container}")
         content_container = self.get_content_container()
-        if not content_container.layout():
+
+        # Ensure content_container has a layout; if not, create one.
+        # This will be the main layout for this module's specific content.
+        if content_container.layout() is None:
             content_container_layout = QVBoxLayout(content_container)
+            content_container.setLayout(content_container_layout) # Explicitly set it on the container
+            self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: Set new QVBoxLayout on content_container.")
         else:
-            # If a layout already exists, use it. This might be QVBoxLayout or another type.
-            # If it's not QVBoxLayout and we need specific QVBoxLayout features, it might need adjustment.
-            # For now, assume it's suitable or a new QVBoxLayout is fine.
             content_container_layout = content_container.layout()
+            self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: Using existing layout for content_container.")
 
-        # Ensure the content_container_layout has appropriate margins and spacing if desired
-        content_container_layout.setContentsMargins(15, 15, 15, 15) # Or use QSS
-        content_container_layout.setSpacing(20) # Or use QSS
-
+        # Configure margins and spacing for the content_container's layout
+        content_container_layout.setContentsMargins(15, 15, 15, 15)
+        content_container_layout.setSpacing(20)
 
         # --- Main Grid for Sections (2 columns) ---
         grid_layout = QGridLayout()

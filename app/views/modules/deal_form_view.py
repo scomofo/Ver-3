@@ -607,42 +607,44 @@ class DealFormView(BaseViewModule): # Changed inheritance
         return logger
 
     def init_ui(self):
-        # outer_layout = QVBoxLayout(self) # REMOVED - BaseViewModule provides base_main_layout
-        # outer_layout.setContentsMargins(0, 0, 0, 0)
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: Starting UI initialization.")
 
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: Starting")
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: MRO: {type(self).__mro__}")
-        has_get_content_container = hasattr(self, 'get_content_container')
-        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} init_ui: hasattr(self, 'get_content_container'): {has_get_content_container}")
-        content_container = self.get_content_container()
-        if not content_container.layout(): # Ensure content_container has a layout
-            content_container_layout = QVBoxLayout(content_container)
+        # Get the content container from BaseViewModule
+        content_area = self.get_content_container()
+        if not content_area.layout(): # Ensure content_area has a layout
+            # Using QVBoxLayout for the main content area of this specific module
+            content_area_layout = QVBoxLayout(content_area)
+            content_area.setLayout(content_area_layout)
         else:
-            content_container_layout = content_container.layout()
+            # If a layout already exists, use it.
+            # This assumes it's a QVBoxLayout or similar, adjust if needed.
+            content_area_layout = content_area.layout()
 
-        content_container_layout.setContentsMargins(0,0,0,0)
-        content_container_layout.setSpacing(0)
+        # content_area_layout is the main layout for DealFormView's content,
+        # replacing the old 'outer_layout' that was set on 'self'.
+        # BaseViewModule's base_main_layout contains the header, content_area, and footer.
 
-        scroll_area = QScrollArea(content_container) # Parent is content_container
+        # Margins and spacing for the content area itself, not the scroll content.
+        content_area_layout.setContentsMargins(0,0,0,0)
+        content_area_layout.setSpacing(0)
+
+        # Scroll Area Setup
+        scroll_area = QScrollArea() # No parent needed here, will be added to content_area_layout
         scroll_area.setWidgetResizable(True)
-        # scroll_area.setStyleSheet("QScrollArea { border: none; background-color: #f1f3f5; }") # Optionally move to QSS
+        # scroll_area.setStyleSheet("QScrollArea { border: none; background-color: #f1f3f5; }") # Optional styling
 
-        form_content_widget = QWidget() # This will hold all form group boxes
-        content_layout = QVBoxLayout(form_content_widget) # Layout for the form_content_widget
+        form_scroll_content_widget = QWidget() # This widget goes inside the scroll area
+        content_layout = QVBoxLayout(form_scroll_content_widget) # Layout for the scrollable content
         content_layout.setSpacing(15)
-        content_layout.setContentsMargins(15, 15, 15, 15)
-
-        # header_widget is removed and its elements will be integrated into the base header or removed.
-        # The original title_label from this header_widget is removed as BaseViewModule handles the main title.
-        # We will create self.logo_label and self.sp_status_label_ui next and add them to the base header.
-        # header_widget = QWidget() # REMOVE THIS
-        # The following lines related to the old header_widget are now removed or will be handled differently:
-        # header_widget.setStyleSheet(...)
-        # header_layout = QHBoxLayout(header_widget) # REMOVE THIS
+        content_layout.setContentsMargins(15, 15, 15, 15) # Margins for the content within scroll area
 
         # --- Custom Header Elements Integration ---
-        self.logo_label = QLabel() # Made it an instance variable
+        # BaseViewModule already provides self.module_title_label in its header.
+        # We add DealFormView-specific items (logo, SP status) to the base header's layout.
+
+        self.logo_label = QLabel()
         logo_resource_path = "images/logo.png"
+        # ... (rest of logo loading logic remains the same) ...
         final_logo_path = None
         if self.main_window and hasattr(self.main_window, 'config') and hasattr(self.main_window.config, 'get_resource_path') and callable(self.main_window.config.get_resource_path):
             final_logo_path = self.main_window.config.get_resource_path(logo_resource_path)
@@ -664,7 +666,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
         if final_logo_path and os.path.exists(final_logo_path):
             logo_pixmap = QPixmap(final_logo_path)
             if not logo_pixmap.isNull():
-                self.logo_label.setPixmap(logo_pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)) # Adjusted size
+                self.logo_label.setPixmap(logo_pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             else: self.logo_label.setText("LogoErr")
         else: self.logo_label.setText("Logo")
 
@@ -672,27 +674,132 @@ class DealFormView(BaseViewModule): # Changed inheritance
         current_sp_manager_for_status = self.sharepoint_manager_enhanced or self.sharepoint_manager_original_ref
         if current_sp_manager_for_status and hasattr(current_sp_manager_for_status, 'is_operational'):
             try: sp_connected = current_sp_manager_for_status.is_operational
-            except: pass
-        sp_status_text = "🌐 SP Connected" if sp_connected else "📱 Local" # Shorter text
+            except Exception as e_sp_op: self.logger.debug(f"Error checking SP operational status: {e_sp_op}") # Defensive
+        sp_status_text = "🌐 SP Connected" if sp_connected else "📱 Local"
         if self.sharepoint_manager_enhanced: sp_status_text += " (E)"
         self.sp_status_label_ui = QLabel(sp_status_text)
-        self.sp_status_label_ui.setStyleSheet("color: #e9ecef; font-size: 9pt; font-style: italic;") # Adjusted for base header
+        # Style for SP status label might need adjustment if base header has dark background
+        self.sp_status_label_ui.setStyleSheet("color: #495057; font-size: 9pt; font-style: italic;")
 
         base_header_layout = self.get_base_header_layout()
         if base_header_layout:
-            # Insert logo at the beginning of the base header
             base_header_layout.insertWidget(0, self.logo_label)
-            base_header_layout.insertSpacing(1, 10) # Add some space after the logo
-            # The BaseViewModule's title label (self.module_title_label) is already in the base_header_layout.
-            # Add SP status label to the end (after the stretch).
-            base_header_layout.addWidget(self.sp_status_label_ui)
+            base_header_layout.insertSpacing(1, 10)
+            # self.module_title_label is already in base_header_layout from BaseViewModule
+            base_header_layout.addWidget(self.sp_status_label_ui) # Add SP status to the end
+        else:
+            self.logger.warning("Could not get base_header_layout to add custom header elements.")
 
-        # The original DealFormView's header_widget and its title_label are removed.
-        # content_layout.addWidget(header_widget) # REMOVED
+        # --- Form content (GroupBoxes, etc.) added to 'content_layout' ---
+        # This part remains largely the same, ensuring all widgets are parented to form_scroll_content_widget
+        # or added to its layout (content_layout).
 
-        # --- Original form content starts here, added to 'content_layout' for the scroll area's widget ---
         customer_sales_group = QGroupBox("Customer & Salesperson")
         cs_layout = QHBoxLayout(customer_sales_group)
+        self.customer_name = QLineEdit()
+        self.customer_name.setClearButtonEnabled(True)
+        self.customer_name.setPlaceholderText("Customer Name")
+        self.customer_name_completer = QCompleter([])
+        self.customer_name_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.customer_name_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.customer_name_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.customer_name.setCompleter(self.customer_name_completer)
+        cs_layout.addWidget(self.customer_name)
+        self.salesperson = QLineEdit()
+        self.salesperson.setClearButtonEnabled(True)
+        self.salesperson.setPlaceholderText("Salesperson")
+        self.salesperson_completer = QCompleter([])
+        self.salesperson_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.salesperson_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.salesperson_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.salesperson.setCompleter(self.salesperson_completer)
+        cs_layout.addWidget(self.salesperson)
+        content_layout.addWidget(customer_sales_group) # Add group to the scrollable content's layout
+
+        item_sections_layout = QVBoxLayout()
+        item_sections_layout.addWidget(self._create_equipment_section())
+        item_sections_layout.addWidget(self._create_trade_section())
+        item_sections_layout.addWidget(self._create_parts_section())
+        content_layout.addLayout(item_sections_layout)
+
+        work_notes_layout = QHBoxLayout()
+        work_notes_layout.addWidget(self._create_work_order_options_section(), 1)
+        work_notes_layout.addWidget(self._create_notes_section(), 1)
+        content_layout.addLayout(work_notes_layout)
+
+        actions_groupbox = QGroupBox("Actions")
+        main_actions_layout = QHBoxLayout(actions_groupbox)
+        self.delete_line_btn = QPushButton("Delete Selected Line")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)
+        self.delete_line_btn.setIcon(icon)
+        self.delete_line_btn.setIconSize(QSize(16, 16))
+        self.delete_line_btn.setToolTip("Delete the selected line from any list above")
+        self.delete_line_btn.clicked.connect(self.delete_selected_list_item)
+        main_actions_layout.addWidget(self.delete_line_btn)
+        main_actions_layout.addStretch(1)
+
+        self.save_draft_btn = QPushButton("Save Draft")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
+        self.save_draft_btn.setIcon(icon)
+        self.save_draft_btn.setIconSize(QSize(16, 16))
+        self.save_draft_btn.clicked.connect(self.save_draft)
+        main_actions_layout.addWidget(self.save_draft_btn)
+
+        self.load_draft_btn = QPushButton("Load Draft")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
+        self.load_draft_btn.setIcon(icon)
+        self.load_draft_btn.setIconSize(QSize(16, 16))
+        self.load_draft_btn.clicked.connect(self.load_draft)
+        main_actions_layout.addWidget(self.load_draft_btn)
+        main_actions_layout.addSpacing(20)
+
+        self.generate_csv_btn = QPushButton("Export CSV")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
+        self.generate_csv_btn.setIcon(icon)
+        self.generate_csv_btn.setIconSize(QSize(16, 16))
+        self.generate_csv_btn.clicked.connect(self.generate_csv_action)
+        main_actions_layout.addWidget(self.generate_csv_btn)
+
+        self.generate_email_btn = QPushButton("Generate Email")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward)
+        self.generate_email_btn.setIcon(icon)
+        self.generate_email_btn.setIconSize(QSize(16, 16))
+        self.generate_email_btn.clicked.connect(self.generate_email)
+        main_actions_layout.addWidget(self.generate_email_btn)
+
+        self.generate_both_btn = QPushButton("Generate All")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+        self.generate_both_btn.setIcon(icon)
+        self.generate_both_btn.setIconSize(QSize(16,16))
+        self.generate_both_btn.clicked.connect(self.generate_csv_and_email)
+        main_actions_layout.addWidget(self.generate_both_btn)
+
+        self.reset_btn = QPushButton("Reset Form")
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload) # Example icon
+        self.reset_btn.setIcon(icon)
+        self.reset_btn.setIconSize(QSize(16,16))
+        self.reset_btn.setObjectName("reset_btn")
+        self.reset_btn.clicked.connect(self.reset_form)
+        main_actions_layout.addWidget(self.reset_btn)
+        content_layout.addWidget(actions_groupbox)
+
+        content_layout.addStretch(1) # Ensure content pushes up
+
+        scroll_area.setWidget(form_scroll_content_widget)
+        content_area_layout.addWidget(scroll_area) # Add scroll_area to the main content area's layout
+
+        self._apply_styles() # Apply styles after UI is constructed
+
+        # Connect signals after UI elements are created
+        if hasattr(self, 'equipment_product_name'):
+            self.equipment_product_name.editingFinished.connect(self._on_equipment_product_name_selected)
+            if hasattr(self, 'equipment_product_name_completer'):
+                self.equipment_product_name_completer.activated.connect(self._on_equipment_product_name_selected_from_completer)
+        if hasattr(self, 'equipment_product_code'):
+             self.equipment_product_code.editingFinished.connect(self._on_equipment_product_code_selected)
+        if hasattr(self, 'part_number'):
+            self.part_number.editingFinished.connect(self._on_part_number_selected)
+        self.customer_name.editingFinished.connect(self.on_customer_field_changed)
         self.customer_name = QLineEdit()
         self.customer_name.setClearButtonEnabled(True)
         self.customer_name.setPlaceholderText("Customer Name")
@@ -1564,15 +1671,15 @@ class DealFormView(BaseViewModule): # Changed inheritance
 
         equipment_items = []
         for i in range(self.equipment_list.count()):
-            item = self._parse_equipment_item_for_email(self.equipment_list.item(i).text())
-            if item:
-                equipment_items.append(item)
+            item_data = self._parse_equipment_item_for_email(self.equipment_list.item(i).text())
+            if item_data:
+                equipment_items.append(item_data)
 
         part_items = []
         for i in range(self.part_list.count()):
-            item = self._parse_part_item_for_email(self.part_list.item(i).text())
-            if item:
-                part_items.append(item)
+            item_data = self._parse_part_item_for_email(self.part_list.item(i).text())
+            if item_data:
+                part_items.append(item_data)
 
         # Determine Effective Charge To
         effective_charge_to = customer_name # Default
@@ -1590,7 +1697,8 @@ class DealFormView(BaseViewModule): # Changed inheritance
         if equipment_items:
             first_item_name = equipment_items[0]['name']
         elif part_items:
-            first_item_name = part_items[0]['name']
+            # Use part name if available, otherwise part number
+            first_item_name = part_items[0]['name'] if part_items[0]['name'] != "N/A" else part_items[0]['pn']
         self.logger.debug(f"First item for subject: '{first_item_name}'")
 
         # Construct Subject
@@ -1611,14 +1719,34 @@ class DealFormView(BaseViewModule): # Changed inheritance
             for eq in equipment_items:
                 body_lines.append(f"{eq['name']} STK# {eq['stk']} {eq['price']}")
 
+        # Trades section (as per test_email_with_all_sections)
+        if self.trade_list.count() > 0:
+            body_lines.append("\nTRADES")
+            body_lines.append("--------------------------------------------------")
+            for i in range(self.trade_list.count()):
+                 # Assuming trade list items are simple strings like: "Trade Item Name $Amount" or "Trade Item Name STK#XYZ $Amount"
+                 # This parsing is simpler than equipment/parts helpers.
+                 trade_item_text = self.trade_list.item(i).text()
+                 body_lines.append(f"- {trade_item_text}")
+
         if part_items:
             body_lines.append("\nPARTS")
             body_lines.append("--------------------------------------------------")
             for p_item in part_items:
                 charge_to_for_part = p_item['charge'] if p_item['charge'] else effective_charge_to
                 loc_display = f" {p_item['loc']}" if p_item['loc'] else ""
-                pn_display = f"{p_item['pn']} - " if p_item['pn'] else ""
-                body_lines.append(f"{p_item['qty']} x {pn_display}{p_item['name']}{loc_display} Charge to {charge_to_for_part}")
+                pn_display = f"{p_item['pn']} - " if p_item['pn'] and p_item['pn'] != "N/A" else ""
+                name_display = p_item['name'] if p_item['name'] != "N/A" else ""
+                # Ensure we don't have " - " if both pn and name are effectively empty
+                if not pn_display and not name_display:
+                    display_name_pn = "(Part details missing)"
+                elif not name_display and pn_display: # Only PN
+                    display_name_pn = p_item['pn']
+                else: # PN and Name, or just Name
+                    display_name_pn = f"{pn_display}{name_display}"
+
+                body_lines.append(f"{p_item['qty']} x {display_name_pn}{loc_display} Charge to {charge_to_for_part}")
+
 
         if wo_hours:
             body_lines.append("\nWORK ORDER")
@@ -1639,7 +1767,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
         self.logger.info(f"Email recipients: TO='{to_email}', CC='{cc_email if cc_email else "N/A"}'")
 
         # Build Deep Link URL
-        body_string = "\r\n".join(body_lines) # Use CRLF for body
+        body_string = "\r\n".join(body_lines)
         self.logger.debug(f"Plain text email body for URL (first 200 chars): {body_string[:200]}")
 
         encoded_to = urllib.parse.quote(to_email)
@@ -1652,7 +1780,6 @@ class DealFormView(BaseViewModule): # Changed inheritance
             outlook_url += f"&cc={encoded_cc}"
 
         self.logger.info(f"Constructed Outlook deep link. Length: {len(outlook_url)}. Opening URL...")
-        # self.logger.debug(f"Full Outlook URL: {outlook_url}") # Potentially very long
 
         try:
             opened = webbrowser.open(outlook_url)
@@ -1663,18 +1790,16 @@ class DealFormView(BaseViewModule): # Changed inheritance
                 self._show_status_message("⚠️ Could not open email link. Copied to clipboard.", 7000)
                 self.logger.warning("webbrowser.open returned False. Attempting to copy link to clipboard.")
                 try:
-                    QApplication.clipboard().setText(outlook_url) # Ensure QApplication is available
+                    QApplication.clipboard().setText(outlook_url)
                     self.logger.info("Outlook deep link copied to clipboard.")
                 except Exception as clip_err:
                     self.logger.error(f"Failed to copy Outlook link to clipboard: {clip_err}", exc_info=True)
                     self._show_status_message("⚠️ Error copying email link to clipboard. Check logs.", 7000)
-            return True # Indicate that the process to open/copy was actioned
+            return True
         except Exception as e:
             self.logger.error(f"Exception during webbrowser.open for Outlook link: {e}", exc_info=True)
             self._show_status_message(f"❌ Error opening email link: {e}", 7000)
             return False
-
-    def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
         if not self.validate_form_for_csv():
             self._show_status_message("Generate All cancelled: Form validation failed.", 3000)
