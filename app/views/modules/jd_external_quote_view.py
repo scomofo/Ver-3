@@ -145,8 +145,7 @@ class JDExternalQuoteView(BaseViewModule):
 
         tkinter_app_script_path = self.config.get(CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH)
         if not tkinter_app_script_path:
-            msg = (f"Path to the JD Quote (Tkinter) application script "
-                   f"({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) is not configured.")
+            msg = f"Path to the JD Quote (Tkinter) application script ({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) is not configured."
             self.logger.warning(f"{self.module_name}: {msg} Launch disabled.")
             tooltip_messages.append(msg)
             status_text_messages.append("Configuration Error: Path to external JD quoting app is not set.")
