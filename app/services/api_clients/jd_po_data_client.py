@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, Any
 import aiohttp
 from app.core.config import BRIDealConfig, get_config
 from app.core.exceptions import BRIDealException, ErrorSeverity
-from app.core.result import Result
+from app.core.exceptions import Result
 from app.services.integrations.jd_auth_manager import JDAuthManager
 
 logger = logging.getLogger(__name__)
