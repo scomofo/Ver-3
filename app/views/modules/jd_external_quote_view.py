@@ -564,146 +564,146 @@ class JDExternalQuoteView(BaseViewModule):
 
 
 # Example Usage (for testing this module standalone)
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - [%(module)s.%(funcName)s:%(lineno)d] - %(message)s')
-    from PyQt6.QtWidgets import QApplication # Moved import here
-    # Dummy Config class for testing
-    class Config:
-        def __init__(self, settings=None):
-            self._settings = settings if settings else {}
-        def get(self, key, default=None):
-            return self._settings.get(key, default)
-        def __getattr__(self, name): # Allow attribute access for keys like config.cache_dir
-            return self.get(name)
-
-
-    # Create a dummy Tkinter script for testing
-    dummy_tk_script_content = """
-import tkinter as tk
-import sys, json, time, argparse
-
-print(f'Dummy Tkinter App launched with args: {sys.argv}') # Debug print
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--input-file', help='Path to JSON input file')
-args = parser.parse_args()
-
-input_data_content = "No input file provided or error reading it."
-if args.input_file:
-    print(f'Input file argument provided: {args.input_file}')
-    try:
-        with open(args.input_file, 'r') as infile:
-            data = json.load(infile)
-            print(f'Input data from file: {data}') # Debug print
-            input_data_content = f"Received data: {data.get('deal_id', 'N/A')}"
-    except Exception as e:
-        print(f'Error reading input file {args.input_file}: {e}') # Debug print
-        input_data_content = f"Error reading input file: {e}"
-else:
-    print("No --input-file argument provided.") # Debug print
-
-root = tk.Tk()
-root.title('Dummy JD Quote Tool')
-tk.Label(root, text=f'This is a dummy Tkinter JD Quote App.\\nClose this window to simulate finishing.\\n{input_data_content}').pack(padx=20, pady=20)
-
-def on_close():
-    print('Dummy Tkinter App closing.') # Debug print
-    # Simulate outputting a JSON result to stdout
-    result = {'quote_id': 'TK-QUOTE-SUCCESS-123', 'pdf_path': '/path/to/dummy_quote.pdf', 'status': 'success_from_tk'}
-    print(json.dumps(result)) # This line should be the primary JSON output
-    root.destroy()
-
-root.protocol('WM_DELETE_WINDOW', on_close)
-# time.sleep(1) # Simulate some work
-root.mainloop()
-"""
-    dummy_tk_script_name = "dummy_jd_quote_tk_app_test.py"
-    with open(dummy_tk_script_name, "w") as f:
-        f.write(dummy_tk_script_content)
-
-
-    mock_config_instance = MockJDExternalConfig(script_path_val=dummy_tk_script_name, python_exec_val=sys.executable)
-    # Dummy AuthManager for testing
-    class MockAuthManager(JDAuthManager):
-        def __init__(self, config_instance):
-            super().__init__(config_instance)
-            self._is_configured = True # Assume configured for test
-        def is_configured(self): return self._is_configured
-        async def get_access_token(self): return Result.success("mock_token")
-        async def refresh_token(self): return Result.success("mock_refreshed_token")
-
-
-    class MockJDQuoteIntServiceExt:
-        def __init__(self, operational=True):
-            self.is_operational = operational
-            self.quote_builder = None # Can be added if needed for testing _prepare_input_data_file
-            self.logger = logging.getLogger("MockJDIntServiceExt")
-            if not self.is_operational: self.logger.warning("MockJDQuoteIntServiceExt set to non-operational.")
-
-    class DummyMainWindowForExternalQuote(QWidget):
-        def __init__(self, config_ref, jd_q_int_service_ref):
-            super().__init__()
-            self.config = config_ref
-            self.jd_quote_integration_service = jd_q_int_service_ref
-            self.cache_handler = None # Not used by this view directly
-
-        def handle_quote_finished(self, result_data):
-            logger.info(f"MAIN WINDOW (Test): External quote process finished. Result: {result_data}")
-            QMessageBox.information(self, "External Process Done (Test)",
-                                    f"Quote tool output: {result_data.get('quote_id', 'N/A')}")
-
-    app = QApplication(sys.argv) # Ensure QApplication is created before widgets
-
-    # --- Test Case 1: Service and Script Path OK ---
-    print("\n--- Test Case 1: Service and Script OK ---")
-    mock_jd_service_ok = MockJDQuoteIntServiceExt(operational=True)
-    mock_auth_manager = MockAuthManager(mock_config_instance) # Create AuthManager
-    dummy_main_ok = DummyMainWindowForExternalQuote(mock_config_instance, mock_jd_service_ok)
-
-    view_ok = JDExternalQuoteView(
-        config=mock_config_instance,
-        auth_manager=mock_auth_manager, # Pass AuthManager
-        main_window=dummy_main_ok,
-        jd_quote_integration_service=mock_jd_service_ok
-    )
-    view_ok.quote_process_finished_signal.connect(dummy_main_ok.handle_quote_finished)
-    view_ok.set_deal_context({"deal_id": "DEAL-TEST-007", "customer_name": "Tkinter Test Farm"})
-    view_ok.setWindowTitle("JD Ext Quote - Test (Operational)")
-    view_ok.setGeometry(200, 200, 700, 500)
-    view_ok.show()
-
-
-    # --- Test Case 2: Service NOT Operational ---
-    # print("\n--- Test Case 2: Service NOT Operational ---")
-    # mock_jd_service_not_ok = MockJDQuoteIntServiceExt(operational=False)
-    # dummy_main_not_ok_svc = DummyMainWindowForExternalQuote(mock_config_instance, mock_jd_service_not_ok)
-    # view_not_ok_svc = JDExternalQuoteView(
-    #     config=mock_config_instance, auth_manager=mock_auth_manager,
-    #     main_window=dummy_main_not_ok_svc, jd_quote_integration_service=mock_jd_service_not_ok
-    # )
-    # view_not_ok_svc.setWindowTitle("JD Ext Quote - Test (Service Not Op)")
-    # view_not_ok_svc.setGeometry(250, 250, 700, 500) # Offset
-    # view_not_ok_svc.show()
-
-
-    # --- Test Case 3: Script Path Missing ---
-    # print("\n--- Test Case 3: Script Path Missing ---")
-    # mock_config_no_script = MockJDExternalConfig(script_path_val=None, python_exec_val=sys.executable) # No script path
-    # dummy_main_no_script = DummyMainWindowForExternalQuote(mock_config_no_script, mock_jd_service_ok) # Service is OK
-    # view_no_script = JDExternalQuoteView(
-    #     config=mock_config_no_script, auth_manager=mock_auth_manager,
-    #     main_window=dummy_main_no_script, jd_quote_integration_service=mock_jd_service_ok
-    # )
-    # view_no_script.setWindowTitle("JD Ext Quote - Test (No Script Path)")
-    # view_no_script.setGeometry(300, 300, 700, 500) # Offset
-    # view_no_script.show()
-
-
-    exit_code = app.exec()
-    # Cleanup
-    if os.path.exists(dummy_tk_script_name): os.remove(dummy_tk_script_name)
-    mock_config_instance.cleanup()
-    sys.exit(exit_code)
+# if __name__ == '__main__':
+#     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - [%(module)s.%(funcName)s:%(lineno)d] - %(message)s')
+#     from PyQt6.QtWidgets import QApplication # Moved import here
+#     # Dummy Config class for testing
+#     class Config:
+#         def __init__(self, settings=None):
+#             self._settings = settings if settings else {}
+#         def get(self, key, default=None):
+#             return self._settings.get(key, default)
+#         def __getattr__(self, name): # Allow attribute access for keys like config.cache_dir
+#             return self.get(name)
+#
+#
+#     # Create a dummy Tkinter script for testing
+#     dummy_tk_script_content = """
+# import tkinter as tk
+# import sys, json, time, argparse
+#
+# print(f'Dummy Tkinter App launched with args: {sys.argv}') # Debug print
+#
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--input-file', help='Path to JSON input file')
+# args = parser.parse_args()
+#
+# input_data_content = "No input file provided or error reading it."
+# if args.input_file:
+#     print(f'Input file argument provided: {args.input_file}')
+#     try:
+#         with open(args.input_file, 'r') as infile:
+#             data = json.load(infile)
+#             print(f'Input data from file: {data}') # Debug print
+#             input_data_content = f"Received data: {data.get('deal_id', 'N/A')}"
+#     except Exception as e:
+#         print(f'Error reading input file {args.input_file}: {e}') # Debug print
+#         input_data_content = f"Error reading input file: {e}"
+# else:
+#     print("No --input-file argument provided.") # Debug print
+#
+# root = tk.Tk()
+# root.title('Dummy JD Quote Tool')
+# tk.Label(root, text=f'This is a dummy Tkinter JD Quote App.\\nClose this window to simulate finishing.\\n{input_data_content}').pack(padx=20, pady=20)
+#
+# def on_close():
+#     print('Dummy Tkinter App closing.') # Debug print
+#     # Simulate outputting a JSON result to stdout
+#     result = {'quote_id': 'TK-QUOTE-SUCCESS-123', 'pdf_path': '/path/to/dummy_quote.pdf', 'status': 'success_from_tk'}
+#     print(json.dumps(result)) # This line should be the primary JSON output
+#     root.destroy()
+#
+# root.protocol('WM_DELETE_WINDOW', on_close)
+# # time.sleep(1) # Simulate some work
+# root.mainloop()
+# """
+#     dummy_tk_script_name = "dummy_jd_quote_tk_app_test.py"
+#     with open(dummy_tk_script_name, "w") as f:
+#         f.write(dummy_tk_script_content)
+#
+#
+#     mock_config_instance = MockJDExternalConfig(script_path_val=dummy_tk_script_name, python_exec_val=sys.executable)
+#     # Dummy AuthManager for testing
+#     class MockAuthManager(JDAuthManager):
+#         def __init__(self, config_instance):
+#             super().__init__(config_instance)
+#             self._is_configured = True # Assume configured for test
+#         def is_configured(self): return self._is_configured
+#         async def get_access_token(self): return Result.success("mock_token")
+#         async def refresh_token(self): return Result.success("mock_refreshed_token")
+#
+#
+#     class MockJDQuoteIntServiceExt:
+#         def __init__(self, operational=True):
+#             self.is_operational = operational
+#             self.quote_builder = None # Can be added if needed for testing _prepare_input_data_file
+#             self.logger = logging.getLogger("MockJDIntServiceExt")
+#             if not self.is_operational: self.logger.warning("MockJDQuoteIntServiceExt set to non-operational.")
+#
+#     class DummyMainWindowForExternalQuote(QWidget):
+#         def __init__(self, config_ref, jd_q_int_service_ref):
+#             super().__init__()
+#             self.config = config_ref
+#             self.jd_quote_integration_service = jd_q_int_service_ref
+#             self.cache_handler = None # Not used by this view directly
+#
+#         def handle_quote_finished(self, result_data):
+#             logger.info(f"MAIN WINDOW (Test): External quote process finished. Result: {result_data}")
+#             QMessageBox.information(self, "External Process Done (Test)",
+#                                     f"Quote tool output: {result_data.get('quote_id', 'N/A')}")
+#
+#     app = QApplication(sys.argv) # Ensure QApplication is created before widgets
+#
+#     # --- Test Case 1: Service and Script Path OK ---
+#     print("\n--- Test Case 1: Service and Script OK ---")
+#     mock_jd_service_ok = MockJDQuoteIntServiceExt(operational=True)
+#     mock_auth_manager = MockAuthManager(mock_config_instance) # Create AuthManager
+#     dummy_main_ok = DummyMainWindowForExternalQuote(mock_config_instance, mock_jd_service_ok)
+#
+#     view_ok = JDExternalQuoteView(
+#         config=mock_config_instance,
+#         auth_manager=mock_auth_manager, # Pass AuthManager
+#         main_window=dummy_main_ok,
+#         jd_quote_integration_service=mock_jd_service_ok
+#     )
+#     view_ok.quote_process_finished_signal.connect(dummy_main_ok.handle_quote_finished)
+#     view_ok.set_deal_context({"deal_id": "DEAL-TEST-007", "customer_name": "Tkinter Test Farm"})
+#     view_ok.setWindowTitle("JD Ext Quote - Test (Operational)")
+#     view_ok.setGeometry(200, 200, 700, 500)
+#     view_ok.show()
+#
+#
+#     # --- Test Case 2: Service NOT Operational ---
+#     # print("\n--- Test Case 2: Service NOT Operational ---")
+#     # mock_jd_service_not_ok = MockJDQuoteIntServiceExt(operational=False)
+#     # dummy_main_not_ok_svc = DummyMainWindowForExternalQuote(mock_config_instance, mock_jd_service_not_ok)
+#     # view_not_ok_svc = JDExternalQuoteView(
+#     #     config=mock_config_instance, auth_manager=mock_auth_manager,
+#     #     main_window=dummy_main_not_ok_svc, jd_quote_integration_service=mock_jd_service_not_ok
+#     # )
+#     # view_not_ok_svc.setWindowTitle("JD Ext Quote - Test (Service Not Op)")
+#     # view_not_ok_svc.setGeometry(250, 250, 700, 500) # Offset
+#     # view_not_ok_svc.show()
+#
+#
+#     # --- Test Case 3: Script Path Missing ---
+#     # print("\n--- Test Case 3: Script Path Missing ---")
+#     # mock_config_no_script = MockJDExternalConfig(script_path_val=None, python_exec_val=sys.executable) # No script path
+#     # dummy_main_no_script = DummyMainWindowForExternalQuote(mock_config_no_script, mock_jd_service_ok) # Service is OK
+#     # view_no_script = JDExternalQuoteView(
+#     #     config=mock_config_no_script, auth_manager=mock_auth_manager,
+#     #     main_window=dummy_main_no_script, jd_quote_integration_service=mock_jd_service_ok
+#     # )
+#     # view_no_script.setWindowTitle("JD Ext Quote - Test (No Script Path)")
+#     # view_no_script.setGeometry(300, 300, 700, 500) # Offset
+#     # view_no_script.show()
+#
+#
+#     exit_code = app.exec()
+#     # Cleanup
+#     if os.path.exists(dummy_tk_script_name): os.remove(dummy_tk_script_name)
+#     mock_config_instance.cleanup()
+#     sys.exit(exit_code)
                 f"({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) is not configured. Launch disabled."
             )
             self.launch_button.setToolTip(
