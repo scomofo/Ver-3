@@ -124,6 +124,8 @@ class BRIDealConfig(BaseSettings):
     )
     jd_dealer_id: Optional[str] = Field(default=None, description="Dealer ID")
     jd_dealer_account_number: Optional[str] = Field(default=None, description="Dealer account number")
+    jd_quote2_api_base_url: str = Field(default="https://jdquote2-api.deere.com", description="John Deere Quote API V2 base URL")
+    jd_customer_linkage_api_base_url: str = Field(default="https://dealer-customer-tools-servicesprod.deere.com", description="John Deere Customer Linkage API base URL")
     
     # SharePoint
     sharepoint_tenant_id: Optional[str] = Field(default=None, description="SharePoint tenant ID")
@@ -158,14 +160,14 @@ class BRIDealConfig(BaseSettings):
     
     # Validators
     if PYDANTIC_V2:
-        @field_validator('jd_api_base_url', 'jd_auth_url', 'jd_token_url')
+        @field_validator('jd_api_base_url', 'jd_auth_url', 'jd_token_url', 'jd_quote2_api_base_url', 'jd_customer_linkage_api_base_url')
         @classmethod
         def validate_urls(cls, v):
             if not v.startswith(('http://', 'https://')):
                 raise ValueError('URL must start with http:// or https://')
             return v.rstrip('/')
     else:
-        @field_validator('jd_api_base_url', 'jd_auth_url', 'jd_token_url')
+        @field_validator('jd_api_base_url', 'jd_auth_url', 'jd_token_url', 'jd_quote2_api_base_url', 'jd_customer_linkage_api_base_url')
         def validate_urls(cls, v):
             if not v.startswith(('http://', 'https://')):
                 raise ValueError('URL must start with http:// or https://')
