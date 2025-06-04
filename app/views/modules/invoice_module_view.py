@@ -210,7 +210,7 @@ class InvoiceModuleView(BaseViewModule):
     async def _initialize_services(self):
         # This method would be called by the application's event loop or a dedicated task runner
         self.logger.info("Initializing JD services...")
-        if self.auth_manager and self.auth_manager.is_configured(): # is_operational check might be better if auth_manager has it
+        if self.auth_manager and self.auth_manager.is_operational: # is_operational check might be better if auth_manager has it
             try:
                 self.jd_quote_data_service = await create_jd_quote_data_service(self.config, self.auth_manager)
                 if self.jd_quote_data_service and not self.jd_quote_data_service.is_operational:
