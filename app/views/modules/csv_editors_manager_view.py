@@ -79,11 +79,24 @@ class CustomersEditorView(CsvEditorBase):
         return ['Name', 'CsutomerNumber'] # MODIFIED
     
     def _init_fallback_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout() # Removed self
         error_label = QLabel(f"⚠️ CsvEditorBase not available\n{CSV_EDITOR_IMPORT_ERROR or 'Unknown error'}")
         error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         error_label.setStyleSheet("color: #dc3545; font-size: 11pt; padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px;")
         layout.addWidget(error_label)
+
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget: widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(layout)
 
 class ProductsEditorView(CsvEditorBase):
     """Enhanced CSV editor for products data"""
@@ -125,11 +138,24 @@ class ProductsEditorView(CsvEditorBase):
         return ['ProductCode', 'ProductName', 'Price', 'JDQName'] # MODIFIED
 
     def _init_fallback_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout() # Removed self
         error_label = QLabel(f"⚠️ CsvEditorBase not available\n{CSV_EDITOR_IMPORT_ERROR or 'Unknown error'}")
         error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         error_label.setStyleSheet("color: #dc3545; font-size: 11pt; padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px;")
         layout.addWidget(error_label)
+
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget: widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(layout)
 
 class PartsEditorView(CsvEditorBase):
     """Enhanced CSV editor for parts data"""
@@ -171,11 +197,24 @@ class PartsEditorView(CsvEditorBase):
         return ['Part Number', 'Part Name'] # MODIFIED
 
     def _init_fallback_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout() # Removed self
         error_label = QLabel(f"⚠️ CsvEditorBase not available\n{CSV_EDITOR_IMPORT_ERROR or 'Unknown error'}")
         error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         error_label.setStyleSheet("color: #dc3545; font-size: 11pt; padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px;")
         layout.addWidget(error_label)
+
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget: widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(layout)
 
 class SalesmenEditorView(CsvEditorBase):
     """Enhanced CSV editor for salesmen data"""
@@ -217,11 +256,24 @@ class SalesmenEditorView(CsvEditorBase):
         return ['Name', 'Email', 'XiD'] # MODIFIED
 
     def _init_fallback_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout() # Removed self
         error_label = QLabel(f"⚠️ CsvEditorBase not available\n{CSV_EDITOR_IMPORT_ERROR or 'Unknown error'}")
         error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         error_label.setStyleSheet("color: #dc3545; font-size: 11pt; padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px;")
         layout.addWidget(error_label)
+
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget: widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(layout)
 
 
 class CsvEditorsManagerView(BaseViewModule):
@@ -244,7 +296,7 @@ class CsvEditorsManagerView(BaseViewModule):
         return "data_editors_icon.png" # Ensure this icon exists
 
     def _init_ui(self):
-        main_layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout() # Removed self as parent
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
 

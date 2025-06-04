@@ -878,8 +878,9 @@ class DealFormView(BaseViewModule): # Changed inheritance
         main_actions_layout.addWidget(self.reset_btn)
         content_layout.addWidget(actions_groupbox)
         content_layout.addStretch(1)
-        scroll_area.setWidget(form_content_widget) # Set the widget containing all form groups
-        content_container_layout.addWidget(scroll_area) # Add scroll_area to the base content container's layout
+        scroll_area.setWidget(form_scroll_content_widget) # Corrected: form_content_widget to form_scroll_content_widget
+        # Assuming content_container_layout is actually content_area_layout from the earlier part of the function
+        content_area_layout.addWidget(scroll_area) # Corrected: content_container_layout to content_area_layout
 
         # self.setLayout(outer_layout) # REMOVED - BaseViewModule handles its own layout (base_main_layout)
         self._apply_styles()

@@ -369,7 +369,7 @@ class PriceBookView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the enhanced user interface with calculator"""
-        main_layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout() # Removed self as parent
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
 

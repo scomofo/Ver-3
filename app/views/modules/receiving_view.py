@@ -181,7 +181,7 @@ class ReceivingView(BaseViewModule):
         return self.MODULE_ICON_NAME
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout() # Removed self as parent
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
 

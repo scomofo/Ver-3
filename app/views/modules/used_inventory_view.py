@@ -72,7 +72,7 @@ class UsedInventoryView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the user interface components."""
-        main_layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout() # Removed self as parent
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
 
