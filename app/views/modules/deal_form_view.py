@@ -1517,43 +1517,122 @@ class DealFormView(BaseViewModule): # Changed inheritance
                 return False
 
     def build_csv_data(self) -> List[Dict[str, Any]]:
-        self.logger.info("Preparing data for SharePoint export...")
-        # Updated headers to match the new structure
-        new_headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount',
-                       'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2',
-                       'Salesperson', 'Email Date', 'Status', 'Timestamp', 'Row ID']
-        self.logger.debug(f"Using new headers for SharePoint data: {new_headers}")
+        self.logger.info("Preparing multi-row data for SharePoint export...")
+        all_rows_data = []
 
+        # Common deal-level information
+        customer_name_text = self.customer_name.text().strip()
+        salesperson_text = self.salesperson.text().strip()
         paid_status = "YES" if self.paid_checkbox.isChecked() else "NO"
         deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
-        # deal_notes_text is no longer collected as 'DealNotes' is removed
+        email_date = datetime.now().strftime("%Y-%m-%d")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Construct the dictionary with new keys and removed 'DealNotes'
-        data_row = {
-            'Payment': paid_status,
-            'CustomerName': self.customer_name.text().strip(),
-            'Equipment': "", # Placeholder from original
-            'Stock Number': "", # Placeholder from original
-            'Amount': "", # Placeholder from original
-            'Trade': "", # Placeholder from original
-            'Attached to stk#': "", # Placeholder from original
-            'Trade STK#': "", # Placeholder from original
-            'Amount2': "", # Placeholder from original
-            'Salesperson': self.salesperson.text().strip(),
-            'Email Date': datetime.now().strftime("%Y-%m-%d"),
-            'Status': deal_status,
-            'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'Row ID': str(uuid.uuid4()) # Changed from UniqueID
-            # 'DealNotes' and its value are removed
-        }
+        # Iterate through Equipment Items
+        for i in range(self.equipment_list.count()):
+            item = self.equipment_list.item(i)
+            parsed_equip_item = self._parse_equipment_item_for_email(item.text()) # Assuming this helper exists and is suitable
+            if parsed_equip_item:
+                row = {
+                    'Payment': paid_status, 'CustomerName': customer_name_text,
+                    'Equipment': parsed_equip_item.get('name', ''),
+                    'Stock Number': parsed_equip_item.get('stk', ''),
+                    'Amount': parsed_equip_item.get('price', '').replace('$', '').replace(',', ''),
+                    'Trade': "", 'Attached to stk#': "", 'Trade STK#': "", 'Amount2': "",
+                    'Salesperson': salesperson_text, 'Email Date': email_date,
+                    'Status': deal_status, 'Timestamp': timestamp,
+                    'Row ID': str(uuid.uuid4())
+                }
+                all_rows_data.append(row)
 
-        # Ensure all specified new_headers keys are present in the data_row, even if empty.
-        # This also helps to ensure the order if the dictionary was somehow not ordered as typed.
-        # (though in modern Python dicts maintain insertion order)
-        final_ordered_row_data = {key: data_row.get(key, "") for key in new_headers}
+        # Iterate through Trade Items
+        for i in range(self.trade_list.count()):
+            item = self.trade_list.item(i)
+            parsed_trade_item = self._parse_trade_item_for_export(item.text())
+            if parsed_trade_item:
+                row = {
+                    'Payment': paid_status, 'CustomerName': customer_name_text,
+                    'Equipment': "", 'Stock Number': "", 'Amount': "",
+                    'Trade': parsed_trade_item.get('name', ''),
+                    'Attached to stk#': "",
+                    'Trade STK#': parsed_trade_item.get('stk', ''),
+                    'Amount2': parsed_trade_item.get('amount', '').replace('$', '').replace(',', ''),
+                    'Salesperson': salesperson_text, 'Email Date': email_date,
+                    'Status': deal_status, 'Timestamp': timestamp,
+                    'Row ID': str(uuid.uuid4())
+                }
+                all_rows_data.append(row)
 
-        self.logger.info(f"Prepared 1 record for SharePoint export with keys: {list(final_ordered_row_data.keys())}")
-        return [final_ordered_row_data]
+        # Handle No Items: If no equipment or trade items, create a default summary row
+        if not all_rows_data:
+            self.logger.info("No equipment or trade items found, creating a default row for the deal.")
+            default_row = {
+                'Payment': paid_status, 'CustomerName': customer_name_text,
+                'Equipment': "", 'Stock Number': "", 'Amount': "",
+                'Trade': "", 'Attached to stk#': "", 'Trade STK#': "", 'Amount2': "",
+                'Salesperson': salesperson_text, 'Email Date': email_date,
+                'Status': deal_status, 'Timestamp': timestamp,
+                'Row ID': str(uuid.uuid4())
+            }
+            all_rows_data.append(default_row)
+
+        # Ensure all rows have the defined headers, even if some fields are empty
+        # This also helps maintain a consistent column order
+        final_headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount',
+                         'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2',
+                         'Salesperson', 'Email Date', 'Status', 'Timestamp', 'Row ID']
+
+        processed_rows = []
+        for data_row in all_rows_data:
+            ordered_row = {key: data_row.get(key, "") for key in final_headers}
+            processed_rows.append(ordered_row)
+
+        self.logger.info(f"Prepared {len(processed_rows)} record(s) for SharePoint export. First row keys: {list(processed_rows[0].keys()) if processed_rows else 'N/A'}")
+        return processed_rows
+
+    def _parse_trade_item_for_export(self, item_text: str) -> Optional[Dict[str, str]]:
+        try:
+            name = ""
+            stk = ""
+            amount_str = "" # Store raw numeric string
+
+            # Pattern 1: "Name" STK#STK_VAL $Amount_VAL or "Name" STK#STK_VAL Amount_VAL
+            match1 = re.match(r'"(.*?)"\s+STK#(.*?)\s+\$?([\d,]+\.?\d*)', item_text, re.IGNORECASE)
+            # Pattern 2: "Name" $Amount_VAL or "Name" Amount_VAL (no stock)
+            match2 = re.match(r'"(.*?)"\s+\$?([\d,]+\.?\d*)', item_text, re.IGNORECASE)
+
+            if match1:
+                name = match1.group(1).strip()
+                stk = match1.group(2).strip()
+                amount_str = match1.group(3).replace(',', '')
+            elif match2:
+                name = match2.group(1).strip()
+                amount_str = match2.group(2).replace(',', '')
+            else: # Fallback for simpler parsing if regex fails (e.g. only name, or unquoted)
+                parts = item_text.split('$')
+                if len(parts) > 1: # If $ is present
+                    amount_str = parts[-1].strip().replace(',', '')
+                    name_part = parts[0].replace('"', '').strip()
+                    if "STK#" in name_part:
+                        name_stk_split = name_part.split("STK#")
+                        name = name_stk_split[0].strip()
+                        if len(name_stk_split) > 1:
+                            stk = name_stk_split[1].strip()
+                    else:
+                        name = name_part
+                elif item_text.count('"') >= 2 : # Assume name is quoted if no $
+                    name = item_text.split('"')[1]
+                else: # If no quotes and no $, assume it's just the name
+                    name = item_text.strip()
+
+            if not name and not amount_str: # Must have at least name or amount to be a valid item
+                self.logger.warning(f"Could not parse sufficient info from trade item: '{item_text}'")
+                return None
+
+            return {'name': name, 'stk': stk, 'amount': amount_str if amount_str else "0.00"}
+        except Exception as e:
+            self.logger.error(f"Error parsing trade item for export '{item_text}': {e}", exc_info=True)
+            return None
 
     def _save_as_local_csv(self, csv_data_string: str, default_dir: Optional[str] = None) -> bool:
         if not csv_data_string:
