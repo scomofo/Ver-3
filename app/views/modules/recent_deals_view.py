@@ -220,7 +220,55 @@ class RecentDealsView(BaseViewModule):
         self.status_label.setStyleSheet("color: #6c757d; font-size: 10pt; padding: 5px;")
         main_layout.addWidget(self.status_label)
 
-        self.setLayout(main_layout)
+        # self.setLayout(main_layout) # Removed: BaseViewModule handles its own layout.
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            # If content_area doesn't have a layout, set main_layout on it.
+            # This is typical if BaseViewModule.get_content_container() returns a simple QWidget.
+            content_area.setLayout(main_layout)
+        else:
+            # If content_area already has a layout (e.g., from BaseViewModule's _init_base_ui),
+            # add main_layout as a sub-layout or its widgets directly.
+            # For simplicity here, assuming main_layout can be directly set if the existing
+            # layout is empty or can be replaced. A more robust approach might be to add
+            # main_layout's items to content_area.layout().
+            # However, directly setting the layout is often fine if content_area is just a container.
+
+            # Check if the existing layout is empty; if so, we can probably replace it.
+            # This is a heuristic. A more robust solution might involve clearing the old layout first
+            # or adding main_layout's contents to the existing layout.
+            if content_area.layout().count() == 0:
+                 # If the existing layout is empty, we can set our new layout.
+                # Clear the old layout first (important to avoid warnings/issues)
+                old_layout = content_area.layout()
+                if old_layout:
+                    # Properly remove and delete the old layout
+                    while old_layout.count():
+                        item = old_layout.takeAt(0)
+                        widget = item.widget()
+                        if widget:
+                            widget.deleteLater()
+                        layout_item = item.layout()
+                        if layout_item:
+                             # Recursively clear sub-layouts if necessary, though less common here
+                            pass # For now, assume simple layouts in content_area
+                    old_layout.deleteLater()
+                content_area.setLayout(main_layout)
+            else:
+                # If the existing layout has items, this indicates a more complex scenario.
+                # For now, we'll log a warning and still try to set the layout,
+                # but this might need module-specific handling.
+                self.logger.warning(f"Content_area for {self.module_name} already had a non-empty layout. Replacing it.")
+                # Attempt to clear and set new layout as above.
+                old_layout = content_area.layout()
+                if old_layout:
+                    while old_layout.count():
+                        item = old_layout.takeAt(0)
+                        widget = item.widget()
+                        if widget: widget.deleteLater()
+                    old_layout.deleteLater()
+                content_area.setLayout(main_layout)
+
 
     def load_module_data(self):
         """Load recent deals data with enhanced tracking"""

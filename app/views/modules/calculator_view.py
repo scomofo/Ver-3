@@ -63,9 +63,10 @@ class CalculatorView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the user interface components."""
-        self.main_layout = QVBoxLayout(self) # Use self.main_layout for consistency
+        # self.main_layout = QVBoxLayout(self) # Changed
+        main_layout = QVBoxLayout() # main_layout is now local
         self.form_layout = QGridLayout()
-        self.main_layout.addLayout(self.form_layout)
+        main_layout.addLayout(self.form_layout)
 
         self.usd_cost_edit = self._create_input_field("Enter USD Cost")
         self.exchange_rate_edit = self._create_input_field("Enter USD-CAD Exchange Rate", str(self.last_exchange_rate))
@@ -94,9 +95,23 @@ class CalculatorView(BaseViewModule):
                       self.markup_edit, self.margin_edit, self.revenue_edit]:
             field.textChanged.connect(self.calculate_values) # Renamed method for clarity
 
-        self._add_clear_button_to_ui()
-        self.main_layout.addStretch() # Add stretch at the end of the main layout
-        self.setLayout(self.main_layout) # Set the main layout for the widget
+        self._add_clear_button_to_ui(main_layout) # Pass main_layout
+        main_layout.addStretch() # Add stretch at the end of the main layout
+        # self.setLayout(self.main_layout) # Removed
+
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(main_layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(main_layout)
 
     def _load_last_exchange_rate(self) -> float:
         """Load the last used exchange rate from cache."""
@@ -158,7 +173,7 @@ class CalculatorView(BaseViewModule):
         """)
         return line_edit
 
-    def _add_clear_button_to_ui(self):
+    def _add_clear_button_to_ui(self, target_layout: QVBoxLayout): # Modified to accept target_layout
         """Adds a styled 'Clear' button to the layout."""
         button_layout = QHBoxLayout()
         button_layout.addStretch() # Push button to the right
@@ -185,7 +200,7 @@ class CalculatorView(BaseViewModule):
         clear_btn.clicked.connect(self.clear_all_fields)
         button_layout.addWidget(clear_btn)
 
-        self.main_layout.addLayout(button_layout) # Add to the main vertical layout
+        target_layout.addLayout(button_layout) # Add to the provided main layout
 
     def clear_all_fields(self):
         """Clears all input fields, resetting exchange rate to the last known good value."""

@@ -149,7 +149,20 @@ class InvoiceModuleView(BaseViewModule):
         
         main_layout.addLayout(buttons_layout)
         
-        self.setLayout(main_layout)
+        # self.setLayout(main_layout) # Removed
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(main_layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(main_layout)
     
     def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
         """

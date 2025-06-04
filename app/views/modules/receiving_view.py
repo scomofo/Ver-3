@@ -258,7 +258,21 @@ class ReceivingView(BaseViewModule):
         layout.addWidget(self.output_log)
 
         layout.addStretch(1)
-        self.setLayout(layout)
+        # self.setLayout(layout) # Removed: BaseViewModule handles its own layout.
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(layout)
+        else:
+            # If content_area already has a layout, clear it and set the new one.
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(layout)
 
     def _click_image(self, image_name, description, timeout=None, confidence=0.8, region=None):
         if self._stop_requested: self.logger.info(f"Stop requested, skipping click for '{description}'."); return "STOPPED"

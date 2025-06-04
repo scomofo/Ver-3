@@ -1465,7 +1465,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
 
         self.logger.debug(f"Data prepared for SharePoint: {csv_data_list}")
 
-        target_sheet = "Sheet1" # Placeholder, make configurable if needed
+        target_sheet = "App" # Changed from "Sheet1"
         self.logger.info(f"Target SharePoint sheet for append: {target_sheet}")
 
         if self.sharepoint_manager_original_ref and self.sharepoint_manager_original_ref.is_operational:
@@ -1473,7 +1473,7 @@ class DealFormView(BaseViewModule): # Changed inheritance
             try:
                 success = self.sharepoint_manager_original_ref.update_excel_data(
                     new_data=csv_data_list,
-                    target_sheet_name_for_append=target_sheet
+                    target_sheet_name_for_append=target_sheet # This now uses "App"
                 )
                 if success:
                     self._show_status_message("✅ Successfully exported deal data to SharePoint Excel.", 5000)
@@ -1800,30 +1800,30 @@ class DealFormView(BaseViewModule): # Changed inheritance
             self.logger.error(f"Exception during webbrowser.open for Outlook link: {e}", exc_info=True)
             self._show_status_message(f"❌ Error opening email link: {e}", 7000)
             return False
+
+    def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
-        if not self.validate_form_for_csv():
-            self._show_status_message("Generate All cancelled: Form validation failed.", 3000)
-            return
+        # First, attempt to generate and export the Excel data to SharePoint
+        # generate_csv_action now handles the SharePoint export and returns True/False
+        excel_export_success = self.generate_csv_action()
 
-        self.logger.info("Step 1: Exporting to SharePoint Excel...")
-        excel_export_ok = self.generate_csv_action() # This now exports to SharePoint Excel
-
-        email_sent_ok = False
-        if excel_export_ok:
-            self.logger.info("SharePoint Excel export successful. Proceeding to email generation...")
-            email_sent_ok = self.generate_email()
+        email_success = False
+        if excel_export_success:
+            self.logger.info("Excel export successful, proceeding to email generation.")
+            # Then, attempt to generate and open the email draft
+            email_success = self.generate_email()
         else:
-            self.logger.warning("SharePoint Excel export failed. Email will not be sent as part of 'Generate All'.")
-            # User would have already received a specific error from generate_csv_action
+            self.logger.warning("Excel export failed or was cancelled, skipping email generation.")
+            # generate_csv_action() or its callees should use _show_status_message for specific errors
+            # Only add a general message here if generate_csv_action doesn't already cover the failure message.
+            # self._show_status_message("Excel export failed, email not generated.", 5000) # Potentially redundant
 
-        if excel_export_ok and email_sent_ok:
-            self._show_status_message("✅ 'Generate All': Data exported to SharePoint and Email sent.", 6000)
-        elif excel_export_ok:
-            self._show_status_message("✅ Data exported to SharePoint. ⚠️ Email sending failed or was skipped. Check logs.", 7000)
-        else:
-            # Specific error for Excel export failure should have been shown by generate_csv_action.
-            # This message is a general fallback if generate_csv_action didn't show one or for clarity.
-            self._show_status_message("❌ 'Generate All': SharePoint Excel export failed. Email not attempted.", 7000)
+        if excel_export_success and email_success:
+            self._show_status_message("'Generate All': SharePoint export and Email draft ready.", 5000)
+        elif excel_export_success and not email_success:
+            # Message for email failure is handled by generate_email()
+            self._show_status_message("'Generate All': SharePoint export done. Check status for email draft.", 5000)
+        # If excel_export_success is False, generate_csv_action() should have shown a status.
 
     def reset_form_no_confirm(self):
         self.customer_name.clear(); self.salesperson.clear()

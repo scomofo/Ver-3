@@ -290,7 +290,21 @@ class CsvEditorsManagerView(BaseViewModule):
         self.status_label = QLabel("Ready")
         self.status_label.setStyleSheet("color: #6c757d; font-size: 10pt; padding: 5px;")
         main_layout.addWidget(self.status_label)
-        self.setLayout(main_layout)
+        # self.setLayout(main_layout) # Removed: BaseViewModule handles its own layout.
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(main_layout)
+        else:
+            # If content_area already has a layout, clear it and set the new one.
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(main_layout)
 
     def load_editors(self):
         if not self.config:

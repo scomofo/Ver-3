@@ -475,7 +475,23 @@ class PriceBookView(BaseViewModule):
         """)
         
         main_layout.addWidget(self.price_table)
-        self.setLayout(main_layout)
+        # self.setLayout(main_layout) # Removed: BaseViewModule handles its own layout.
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(main_layout)
+        else:
+            # If content_area already has a layout, clear it and set the new one.
+            # This is a simplified approach. A more robust one might involve
+            # adding main_layout's contents to the existing layout if it's not empty.
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(main_layout)
         
     def get_icon_name(self): 
         return "price_book_icon.png"

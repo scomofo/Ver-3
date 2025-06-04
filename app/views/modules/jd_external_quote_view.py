@@ -36,19 +36,8 @@ class JDExternalQuoteView(BaseViewModule):
     Adapts functionality based on service availability and configuration.
     """
     quote_process_finished_signal = pyqtSignal(dict) # Emits result data from external app
-    def add_auth_button(self):
-        """Adds JD API authentication button to the view"""
-        from PyQt6.QtWidgets import QPushButton, QVBoxLayout
-        
-        # Create button
-        self.auth_button = QPushButton("Connect to John Deere API")
-        self.auth_button.setToolTip("Authenticate with John Deere API to enable quote features")
-        self.auth_button.clicked.connect(self.authenticate_jd_api)
-        self.add_auth_button()
-        # Add to layout - adjust as needed for your specific UI
-        if hasattr(self, 'layout') and isinstance(self.layout(), QVBoxLayout):
-            self.layout().addWidget(self.auth_button)
-        
+    # Removed redundant add_auth_button method, integrating its logic into _init_ui
+
     def authenticate_jd_api(self):
         """Authenticate with JD API"""
         try:
@@ -90,25 +79,16 @@ class JDExternalQuoteView(BaseViewModule):
         self.current_deal_context: Optional[Dict[str, Any]] = None
         self.temp_input_file_path: Optional[str] = None # To store path of temp file for cleanup
 
-        self._init_ui() # Initializes UI elements including self.launch_button
-        # Add authentication button
-        self.auth_button = QPushButton("Connect to John Deere API")
-        self.auth_button.setToolTip("Authenticate with John Deere API to enable quote features")
-        self.auth_button.clicked.connect(self.authenticate_jd_api)
-        self.layout().addWidget(self.auth_button)  
-          # Replace your_layout with your actual layout variable
+        self._init_ui() # Initializes UI elements including self.launch_button and self.auth_button
 
-        # Add this method to the class
-        def authenticate_jd_api(self):
-            """Trigger JD API authentication"""
-            if hasattr(self, 'main_window') and self.main_window:
-                self.main_window.check_jd_authentication()
         # Adapt UI based on JD service status and Tkinter app path configuration
         self._update_ui_status()
 
     def _update_ui_status(self):
         """Updates the UI elements based on service and configuration status."""
-        if not hasattr(self, 'launch_button'): # UI not fully initialized yet
+        # Ensure UI elements exist before trying to update them.
+        # self.auth_button is now created in _init_ui
+        if not hasattr(self, 'launch_button') or not hasattr(self, 'auth_button'):
             return
 
         service_operational = self.jd_quote_integration_service and self.jd_quote_integration_service.is_operational
@@ -139,9 +119,11 @@ class JDExternalQuoteView(BaseViewModule):
                  "Configuration Error: The path to the external John Deere quoting application is not set.\n"
                  "Please configure JD_QUOTE_TKINTER_APP_SCRIPT_PATH in the .env file or application settings."
             )
+            self.auth_button.setEnabled(True) # Auth button can be enabled even if Tkinter path is missing
         else:
             self.logger.info(f"{self.module_name}: Ready to launch external JD quoting tool.")
             self.launch_button.setEnabled(True)
+            self.auth_button.setEnabled(True)
             self.launch_button.setToolTip("Launches the external John Deere quoting application.")
             self.output_text_edit.setPlaceholderText("Output from the external application will appear here...")
             # Clear previous status messages if placeholder is desired
@@ -151,7 +133,8 @@ class JDExternalQuoteView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the user interface components."""
-        main_layout = QVBoxLayout(self)
+        # main_layout = QVBoxLayout(self) # Changed
+        main_layout = QVBoxLayout()
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
 
@@ -190,8 +173,33 @@ class JDExternalQuoteView(BaseViewModule):
         output_group.setLayout(output_layout)
         main_layout.addWidget(output_group)
 
+        # Create and add auth_button here
+        self.auth_button = QPushButton("Connect to John Deere API")
+        self.auth_button.setToolTip("Authenticate with John Deere API to enable quote features")
+        self.auth_button.clicked.connect(self.authenticate_jd_api)
+        # Add to a new QHBoxLayout for better alignment if needed, or directly
+        auth_button_layout = QHBoxLayout()
+        auth_button_layout.addStretch()
+        auth_button_layout.addWidget(self.auth_button)
+        auth_button_layout.addStretch()
+        main_layout.addLayout(auth_button_layout) # Add to main_layout
+
         main_layout.addStretch(1)
-        self.setLayout(main_layout)
+        # self.setLayout(main_layout) # Removed
+
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(main_layout)
+        else:
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(main_layout)
     
     def set_deal_context(self, deal_data: Optional[Dict[str, Any]]):
         """

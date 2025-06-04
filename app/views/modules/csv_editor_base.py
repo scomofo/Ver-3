@@ -107,7 +107,8 @@ class CsvEditorBase(BaseViewModule):
         self.logger.info(f"SharePoint URL for {filename} set to: {self.sharepoint_file_url}")
     
     def _init_ui(self):
-        main_layout = QVBoxLayout(self)
+        # main_layout = QVBoxLayout(self) # Changed: main_layout is now local
+        main_layout = QVBoxLayout()
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
         
@@ -115,6 +116,23 @@ class CsvEditorBase(BaseViewModule):
         self._create_search_section(main_layout)
         self._create_table_section(main_layout)
         self._create_status_section(main_layout)
+
+        # Set this main_layout on the content_container from BaseViewModule
+        content_area = self.get_content_container()
+        if not content_area.layout():
+            content_area.setLayout(main_layout)
+        else:
+            # If content_area already has a layout, clear it and set the new one.
+            # This is a common strategy if the content_area is meant to be fully managed by the derived class.
+            old_layout = content_area.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                old_layout.deleteLater()
+            content_area.setLayout(main_layout)
     
     def _create_header_section(self, main_layout: QVBoxLayout):
         header_frame = QFrame()
