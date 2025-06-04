@@ -221,6 +221,8 @@ QListWidget {
 
 QListWidget::item {
     padding: 5px;
+    border: none;
+    margin: 0px;
 }
 
 QListWidget::item:selected {
