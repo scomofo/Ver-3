@@ -1518,44 +1518,42 @@ class DealFormView(BaseViewModule): # Changed inheritance
 
     def build_csv_data(self) -> List[Dict[str, Any]]:
         self.logger.info("Preparing data for SharePoint export...")
-        headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount',
-                   'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2',
-                   'Salesperson', 'Email Date', 'Status', 'Timestamp', 'UniqueID', 'DealNotes']
-        self.logger.debug(f"Using headers for SharePoint data: {headers}")
+        # Updated headers to match the new structure
+        new_headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount',
+                       'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2',
+                       'Salesperson', 'Email Date', 'Status', 'Timestamp', 'Row ID']
+        self.logger.debug(f"Using new headers for SharePoint data: {new_headers}")
 
         paid_status = "YES" if self.paid_checkbox.isChecked() else "NO"
         deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
-        deal_notes_text = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ')
+        # deal_notes_text is no longer collected as 'DealNotes' is removed
 
-        # For now, we are creating a single row of summary data.
-        # If multi-line CSV for items was intended for SharePoint, this needs more significant changes.
-        # The original build_csv_data created one summary line after headers.
-        # We will replicate that structure as a single dictionary in a list.
-
-        row_data = {
+        # Construct the dictionary with new keys and removed 'DealNotes'
+        data_row = {
             'Payment': paid_status,
             'CustomerName': self.customer_name.text().strip(),
-            'Equipment': "", # Placeholder, original CSV had this empty for the summary row
-            'Stock Number': "", # Placeholder
-            'Amount': "", # Placeholder
-            'Trade': "", # Placeholder
-            'Attached to stk#': "", # Placeholder
-            'Trade STK#': "", # Placeholder
-            'Amount2': "", # Placeholder
+            'Equipment': "", # Placeholder from original
+            'Stock Number': "", # Placeholder from original
+            'Amount': "", # Placeholder from original
+            'Trade': "", # Placeholder from original
+            'Attached to stk#': "", # Placeholder from original
+            'Trade STK#': "", # Placeholder from original
+            'Amount2': "", # Placeholder from original
             'Salesperson': self.salesperson.text().strip(),
             'Email Date': datetime.now().strftime("%Y-%m-%d"),
             'Status': deal_status,
             'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'UniqueID': str(uuid.uuid4()),
-            'DealNotes': deal_notes_text
+            'Row ID': str(uuid.uuid4()) # Changed from UniqueID
+            # 'DealNotes' and its value are removed
         }
-        # Ensure all header keys are present in the row_data, even if empty
-        for header in headers:
-            if header not in row_data:
-                row_data[header] = ""
 
-        self.logger.info(f"Prepared 1 record for SharePoint export with keys: {list(row_data.keys())}")
-        return [row_data]
+        # Ensure all specified new_headers keys are present in the data_row, even if empty.
+        # This also helps to ensure the order if the dictionary was somehow not ordered as typed.
+        # (though in modern Python dicts maintain insertion order)
+        final_ordered_row_data = {key: data_row.get(key, "") for key in new_headers}
+
+        self.logger.info(f"Prepared 1 record for SharePoint export with keys: {list(final_ordered_row_data.keys())}")
+        return [final_ordered_row_data]
 
     def _save_as_local_csv(self, csv_data_string: str, default_dir: Optional[str] = None) -> bool:
         if not csv_data_string:
