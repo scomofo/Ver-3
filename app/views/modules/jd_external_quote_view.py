@@ -86,7 +86,7 @@ class JDExternalQuoteView(BaseViewModule):
 
     async def _initialize_jd_services(self):
         self.logger.info(f"{self.module_name}: Initializing JD services...")
-        if self.auth_manager and self.auth_manager.is_configured(): # is_operational or is_configured
+        if self.auth_manager and self.auth_manager.is_operational: # is_operational or is_configured
             try:
                 self.jd_maintain_quote_service = await create_jd_maintain_quote_service(self.config, self.auth_manager)
                 if self.jd_maintain_quote_service and self.jd_maintain_quote_service.is_operational:
