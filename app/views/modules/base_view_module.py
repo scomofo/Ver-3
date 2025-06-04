@@ -1,7 +1,7 @@
 # BRIDeal_refactored/app/views/modules/base_view_module.py
 import logging
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel # Added imports for basic functionality
-from PyQt6.QtCore import pyqtSignal, Qt # Added Qt for alignment example
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy
+from PyQt6.QtCore import pyqtSignal, Qt
 
 # Attempt to import Config, though it's passed in __init__
 # from app.core.config import BRIDealConfig, get_config # Not strictly needed for import if always passed
@@ -34,39 +34,86 @@ class BaseViewModule(QWidget):
             main_window (QMainWindow, optional): Reference to the main application window.
             parent (QWidget, optional): The parent widget.
         """
-        super().__init__(parent)
-        
-        self.module_name = module_name
-        self.config = config
-        self.main_window = main_window # Reference to the main application window
+        super().__init__(parent) # Call superclass __init__ first
 
+        self.module_name = module_name # module_name can be set early
+
+        # Initialize self.logger immediately after super() and self.module_name
         if logger_instance:
             self.logger = logger_instance
         else:
-            # If no specific logger is passed, create one for this module
             self.logger = logging.getLogger(f"{__name__}.{self.module_name}")
-            # In a real app, root logger should be configured once at startup by setup_logging.
-            # No need for basicConfig here if main app handles it.
+
+        # Now it's safe to use self.logger
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Starting post-logger setup")
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before super().__init__") # No longer needed here
+        # self.logger.debug(f"BaseViewModule {self.module_name} __init__: After super().__init__") # No longer needed here
+
+        self.config = config
+        self.main_window = main_window # Reference to the main application window
+
+        # Basic UI setup (can be overridden by subclasses)
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: Before _init_base_ui")
+        self._init_base_ui()
+        self.logger.debug(f"BaseViewModule {self.module_name} __init__: After _init_base_ui")
 
         if not self.config:
             self.logger.warning(f"{self.module_name}: BRIDealConfig object was not provided during initialization.")
-        
-        # Basic UI setup (can be overridden by subclasses)
-        # self._init_base_ui() # Optional: call a common UI setup
 
         self.logger.info(f"{self.module_name} initialized.")
 
-    # def _init_base_ui(self):
-    #     """
-    #     Optional: Initialize a very basic UI structure for the base module.
-    #     Subclasses will typically override this or add to it.
-    #     """
-    #     layout = QVBoxLayout(self)
-    #     self.title_label = QLabel(f"Welcome to {self.module_name}")
-    #     self.title_label.setStyleSheet("font-size: 16pt; font-weight: bold;")
-    #     self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter) # Example usage of Qt
-    #     layout.addWidget(self.title_label)
-    #     self.setLayout(layout)
+    def _init_base_ui(self):
+        self.logger.debug(f"BaseViewModule {self.module_name} _init_base_ui: Starting")
+        # Main layout for the BaseViewModule itself
+        self.base_main_layout = QVBoxLayout(self)
+        self.base_main_layout.setContentsMargins(0, 0, 0, 0)
+        self.base_main_layout.setSpacing(0)
+
+        # 1. Header Widget
+        self._header_widget = QFrame(self)
+        self._header_widget.setObjectName("BaseViewModule_Header")
+        # Example: self._header_widget.setFixedHeight(50) # Height can be controlled by QSS or content
+        self._header_widget.setStyleSheet("/* Add QSS objectName selector styles in theme file */")
+
+        header_layout = QHBoxLayout(self._header_widget)
+        header_layout.setContentsMargins(10, 5, 10, 5)
+        header_layout.setSpacing(10)
+
+        self.module_title_label = QLabel(self.module_name)
+        title_font = self.module_title_label.font()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        self.module_title_label.setFont(title_font)
+
+        header_layout.addWidget(self.module_title_label)
+        header_layout.addStretch()
+        self.base_main_layout.addWidget(self._header_widget)
+
+        # 2. Content Container Widget
+        self._content_container = QWidget(self)
+        self.logger.debug(f"BaseViewModule {self.module_name} _init_base_ui: _content_container created")
+        self._content_container.setObjectName("BaseViewModule_ContentContainer")
+        self._content_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # Subclasses will typically set a layout on this container.
+        # For example, by calling self.get_content_container().setLayout(their_layout)
+        # or by passing self.get_content_container() as the parent to their main layout.
+        self.base_main_layout.addWidget(self._content_container, 1)
+
+        # 3. Footer Widget (Optional Placeholder)
+        self._footer_widget = QFrame(self)
+        self._footer_widget.setObjectName("BaseViewModule_Footer")
+        # Example: self._footer_widget.setFixedHeight(30)
+        self._footer_widget.setStyleSheet("/* Add QSS objectName selector styles in theme file */")
+
+        footer_layout = QHBoxLayout(self._footer_widget)
+        footer_layout.setContentsMargins(10, 5, 10, 5)
+        self.status_label_base = QLabel("Ready")
+        footer_layout.addWidget(self.status_label_base)
+        footer_layout.addStretch()
+
+        self.base_main_layout.addWidget(self._footer_widget)
+
+        # self.setLayout(self.base_main_layout) # This is done by QVBoxLayout(self)
 
     def get_module_name(self):
         """Returns the name of this module."""
@@ -121,6 +168,40 @@ class BaseViewModule(QWidget):
         """
         self.logger.debug(f"{self.module_name} - refresh_module_data called (base implementation).")
         self.load_module_data() # Default to calling load_module_data
+
+    def get_base_header_widget(self) -> QFrame:
+        return self._header_widget
+
+    def get_base_header_layout(self) -> QHBoxLayout:
+        # Ensure layout exists before returning
+        layout = self._header_widget.layout()
+        if isinstance(layout, QHBoxLayout):
+            return layout
+        # Create and set if it doesn't exist or is wrong type (should not happen with above code)
+        # For safety, one might create it here if None, but __init_base_ui should handle it.
+        self.logger.warning("Base header layout not found or not QHBoxLayout.")
+        # Fallback or raise error, for now, this is mostly for type hinting
+        return layout if layout else QHBoxLayout() # Return existing or new temp one
+
+    def get_content_container(self) -> QWidget:
+        self.logger.debug(f"BaseViewModule {self.module_name} get_content_container: Called")
+        return self._content_container
+
+    def get_base_footer_widget(self) -> QFrame:
+        return self._footer_widget
+
+    def get_base_footer_layout(self) -> QHBoxLayout:
+        layout = self._footer_widget.layout()
+        if isinstance(layout, QHBoxLayout):
+            return layout
+        self.logger.warning("Base footer layout not found or not QHBoxLayout.")
+        return layout if layout else QHBoxLayout()
+
+    def set_module_title(self, title: str):
+        if hasattr(self, 'module_title_label'):
+            self.module_title_label.setText(title)
+        else:
+            self.logger.warning("module_title_label not found in BaseViewModule header.")
 
 # Example Usage (for testing this base class standalone)
 if __name__ == '__main__':

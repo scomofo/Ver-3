@@ -1,4 +1,5 @@
 # app/views/modules/invoice_module_view.py
+import asyncio
 import logging
 import os
 from datetime import datetime
@@ -15,7 +16,7 @@ from PyQt6.QtGui import QFont
 
 from app.views.modules.base_view_module import BaseViewModule
 from app.core.config import BRIDealConfig, get_config
-from app.core.threading import Worker
+from app.core.threading import AsyncWorker # Changed Worker to AsyncWorker
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
 
 logger = logging.getLogger(__name__)
@@ -197,17 +198,31 @@ class InvoiceModuleView(BaseViewModule):
         self.fetch_quote_btn.setEnabled(False)
         self._show_status_message("Fetching quote details...")
         
-        # Create a wrapper function that handles the parameters properly
-        def get_quote_details_wrapper(*args, **kwargs):
-            # Ignore the status_callback parameter that Worker automatically adds
-            return self.jd_quote_service.get_quote_details_via_api(
-                self.current_quote_id, self.current_dealer_account_no)
-        
-        # Fetch quote details in background thread
-        worker = Worker(get_quote_details_wrapper)
-        worker.signals.result.connect(self._handle_quote_details_result)
-        worker.signals.error.connect(self._handle_quote_details_error)
-        self.thread_pool.start(worker)
+        # Fetch quote details using AsyncWorker
+        # self.logger.info(f"InvoiceModuleView: Attempting to create AsyncWorker for get_quote_details_via_api with quote_id: {self.current_quote_id}, dealer_account_no: {self.current_dealer_account_no}")
+        # async_worker = AsyncWorker(
+        #     self.jd_quote_service.get_quote_details_via_api,
+        #     self.current_quote_id,
+        #     self.current_dealer_account_no
+        # )
+        # self.logger.info(f"InvoiceModuleView: AsyncWorker instance created: {async_worker}")
+
+        self.logger.info(f"InvoiceModuleView: Attempting to create AsyncWorker for get_quote_details_via_api with quote_id: {self.current_quote_id}, dealer_account_no: {self.current_dealer_account_no}")
+        async_worker = AsyncWorker(
+            self.jd_quote_service.get_quote_details_via_api,
+            self.current_quote_id,
+            self.current_dealer_account_no
+        )
+        self.logger.info(f"InvoiceModuleView: AsyncWorker instance created: {async_worker}")
+
+        self.logger.info("InvoiceModuleView: Connecting AsyncWorker signals...")
+        async_worker.result_ready.connect(self._handle_quote_details_result)
+        async_worker.error_occurred.connect(self._handle_quote_details_error)
+        self.logger.info("InvoiceModuleView: AsyncWorker signals connected.")
+
+        self.logger.info("InvoiceModuleView: Attempting to start AsyncWorker.")
+        async_worker.start()
+        self.logger.info("InvoiceModuleView: AsyncWorker start method called.")
     
     def _handle_quote_details_result(self, response_data: dict):
         """Handle the result of the quote details API call."""
@@ -234,24 +249,15 @@ class InvoiceModuleView(BaseViewModule):
             QMessageBox.critical(self, "Quote Details Failed", 
                               f"Could not retrieve quote details.\nError: {error_msg}")
     
-    def _handle_quote_details_error(self, error_info: tuple):
-        """Handle errors from the Worker thread when fetching quote details."""
+    def _handle_quote_details_error(self, exception_obj: Exception):
+        """Handle errors from the AsyncWorker thread when fetching quote details."""
         # Re-enable button
         self.fetch_quote_btn.setEnabled(True)
         
-        # Extract error details
-        try:
-            exc_type, exc_value, exc_traceback = error_info
-            error_msg = str(exc_value)
-        except (ValueError, TypeError):
-            # Handle case where error_info is not properly formatted
-            if isinstance(error_info, Exception):
-                error_msg = str(error_info)
-            else:
-                error_msg = str(error_info)
+        error_msg = str(exception_obj)
         
         # Log the error
-        self.logger.error(f"Error fetching quote details: {error_msg}", exc_info=True)
+        self.logger.error(f"Error fetching quote details: {error_msg}", exc_info=exception_obj)
         
         # Show appropriate error message based on error type
         if "404" in error_msg:

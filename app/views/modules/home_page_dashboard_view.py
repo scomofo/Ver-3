@@ -20,14 +20,12 @@ from app.views.modules.base_view_module import BaseViewModule
 # from app.services.crypto_service import CryptoService
 
 # --- Constants ---
-# TODO: Replace "YOUR_API_KEY_HERE" with a real OpenWeatherMap API key.
-# This key should ideally be loaded from a configuration file or environment variable.
-OPENWEATHERMAP_API_KEY = "YOUR_API_KEY_HERE" # TODO: Replace with your OpenWeatherMap API key
+# TODO: These API keys should ideally be loaded from a secure configuration file or environment variables.
+OPENWEATHERMAP_API_KEY = "92c14d7df751ef55dfd97364024f6319"
 OPENWEATHERMAP_BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 
-# TODO: Replace "YOUR_API_KEY_HERE" with a real ExchangeRate-API key.
-# This key should ideally be loaded from a configuration file or environment variable.
-EXCHANGERATE_API_KEY = "YOUR_API_KEY_HERE" # TODO: Replace with your ExchangeRate-API key
+# TODO: These API keys should ideally be loaded from a secure configuration file or environment variables.
+EXCHANGERATE_API_KEY = "0095107b1ed05a6305f2d932"
 EXCHANGERATE_BASE_URL = "https://v6.exchangerate-api.com/v6/"
 
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3/"
@@ -53,6 +51,7 @@ class HomePageDashboardView(BaseViewModule):
                  logger_instance: Optional[logging.Logger] = None,
                  main_window: Optional[QWidget] = None,
                  parent: Optional[QWidget] = None):
+        # self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Before super().__init__") # Moved after super
         super().__init__(
             module_name=self.MODULE_DISPLAY_NAME,
             config=config,
@@ -60,6 +59,9 @@ class HomePageDashboardView(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
+        # It's now safe to use self.logger as it's initialized in BaseViewModule's __init__
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: Starting")
+        # self.logger.debug(f"{self.MODULE_DISPLAY_NAME} __init__: After super().__init__") # This can be combined or kept for clarity
 
         # Initialize API clients - placeholders for now
         # self.weather_service = WeatherService(api_key=self.config.get("WEATHER_API_KEY"))
@@ -89,16 +91,35 @@ class HomePageDashboardView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the user interface of the dashboard."""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15) # Increased margins
-        main_layout.setSpacing(25) # Increased spacing
+        # main_layout = QVBoxLayout(self) # REMOVE THIS - Handled by BaseViewModule
+        # main_layout.setContentsMargins(15, 15, 15, 15)
+        # main_layout.setSpacing(25)
 
-        # --- Title ---
-        title_label = QLabel(self.MODULE_DISPLAY_NAME)
-        title_font = QFont("Arial", 18, QFont.Weight.Bold) # Larger title font
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title_label)
+        # --- Title is handled by BaseViewModule's header ---
+        # title_label = QLabel(self.MODULE_DISPLAY_NAME) # REMOVE THIS
+        # title_font = QFont("Arial", 18, QFont.Weight.Bold)
+        # title_label.setFont(title_font)
+        # title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # main_layout.addWidget(title_label) # REMOVE THIS
+
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: Starting")
+        # Get the content container from BaseViewModule
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: MRO: {type(self).__mro__}")
+        has_get_content_container = hasattr(self, 'get_content_container')
+        self.logger.debug(f"{self.MODULE_DISPLAY_NAME} _init_ui: hasattr(self, 'get_content_container'): {has_get_content_container}")
+        content_container = self.get_content_container()
+        if not content_container.layout():
+            content_container_layout = QVBoxLayout(content_container)
+        else:
+            # If a layout already exists, use it. This might be QVBoxLayout or another type.
+            # If it's not QVBoxLayout and we need specific QVBoxLayout features, it might need adjustment.
+            # For now, assume it's suitable or a new QVBoxLayout is fine.
+            content_container_layout = content_container.layout()
+
+        # Ensure the content_container_layout has appropriate margins and spacing if desired
+        content_container_layout.setContentsMargins(15, 15, 15, 15) # Or use QSS
+        content_container_layout.setSpacing(20) # Or use QSS
+
 
         # --- Main Grid for Sections (2 columns) ---
         grid_layout = QGridLayout()
@@ -155,10 +176,14 @@ class HomePageDashboardView(BaseViewModule):
         financial_layout.addStretch() # Pushes content to top
         grid_layout.addWidget(financial_frame, 0, 1) # Add to main grid
 
-        main_layout.addLayout(grid_layout)
-        main_layout.addStretch() # Pushes sections to top
+        content_container_layout.addLayout(grid_layout) # Add grid to the content area's layout
+        content_container_layout.addStretch() # Pushes sections to top
 
         # Example of how to apply a common stylesheet (can be expanded)
+        # The styles for #DashboardSectionFrame and its QLabel children might be better in the global QSS
+        # or applied specifically if they are unique to this view.
+        # For now, keeping it here as the subtask didn't explicitly say to remove if not conflicting.
+        # If the base module's QSS defines these, this could be removed or refined.
         self.setStyleSheet("""
             #DashboardSectionFrame {
                 background-color: #f8f9fa;
@@ -170,6 +195,7 @@ class HomePageDashboardView(BaseViewModule):
                 color: #343a40; /* Darker text for better readability */
             }
         """)
+        # self.set_module_title(self.MODULE_DISPLAY_NAME) # Already handled by BaseViewModule __init__
 
     def load_module_data(self):
         """

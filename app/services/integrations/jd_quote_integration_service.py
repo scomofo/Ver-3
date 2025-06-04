@@ -1,4 +1,5 @@
 # app/services/integrations/jd_quote_integration_service.py
+import asyncio
 import logging
 import json
 import os
@@ -11,6 +12,7 @@ from app.core.config import BRIDealConfig, get_config
 from app.services.api_clients.maintain_quotes_api import MaintainQuotesAPI
 # Assuming QuoteBuilder is a local utility for formatting quote data
 from app.services.api_clients.quote_builder import QuoteBuilder # Or wherever it's located
+from app.core.result import Result
 
 logger = logging.getLogger(__name__)
 
@@ -65,39 +67,46 @@ class JDQuoteIntegrationService:
             # self.is_operational remains False
 
     def _handle_api_response(self, response, operation_name):
-        """
-        Handle API responses in a standard way.
+        # response here can be a Result object or a plain dict from older calls
+        if isinstance(response, Result):
+            if response.is_success():
+                logger.info(f"Successful {operation_name} operation (from Result object).")
+                # Ensure body is not None before returning, provide empty dict if it is.
+                return {"type": "SUCCESS", "body": response.value if response.value is not None else {}}
+            else: # Result is_failure()
+                error_details = response.error # This is likely a BRIDealException
+                error_message = str(error_details)
+                details_dict = getattr(error_details, 'details', None)
+                logger.error(f"Error in {operation_name} operation (from Result object): {error_message} - Details: {details_dict}")
+                return {
+                    "type": "ERROR",
+                    "body": {"errorMessage": error_message, "details": details_dict}
+                }
         
-        Args:
-            response: The response from the API
-            operation_name: Name of the operation for logging purposes
-            
-        Returns:
-            dict: A standardized response object with type and body
-        """
+        # Fallback for existing direct dict responses (if any)
         if response is None:
-            logger.error(f"No response received from {operation_name} operation")
+            logger.error(f"No response received from {operation_name} operation (plain response).")
             return {
                 "type": "ERROR",
                 "body": {"errorMessage": f"No response received from {operation_name} operation"}
             }
         
-        if isinstance(response, dict) and response.get("error"):
-            logger.error(f"Error in {operation_name} operation: {response.get('error')}")
+        if isinstance(response, dict) and response.get("error"): # Check for dict with "error" key
+            logger.error(f"Error in {operation_name} operation (plain dict): {response.get('error')}")
             return {
                 "type": "ERROR",
                 "body": {"errorMessage": response.get("error")}
             }
         
-        # If the response already has the expected structure, return it
+        # If the response is already the expected dict structure (e.g. from a non-Result returning path)
         if isinstance(response, dict) and "type" in response and "body" in response:
-            return response
+            return response # Assume it's already in the desired format
         
-        # Otherwise, wrap the response in the expected structure
-        logger.info(f"Successful {operation_name} operation")
+        # Default wrapping for other successful synchronous responses that are not Result objects
+        logger.info(f"Successful {operation_name} operation (plain response, wrapped).")
         return {
             "type": "SUCCESS",
-            "body": response
+            "body": response # Wrap the raw successful response
         }
 
     def _load_jd_quote_app_config(self):
@@ -231,7 +240,7 @@ class JDQuoteIntegrationService:
             logger.error(f"Error creating quote via API: {e}", exc_info=True)
             return {"type": "ERROR", "body": {"errorMessage": str(e)}}
 
-    def get_quote_details_via_api(self, quote_id: str, dealer_account_no: str) -> dict:
+    async def get_quote_details_via_api(self, quote_id: str, dealer_account_no: str) -> dict:
         """
         Retrieves quote details from the John Deere system.
         
@@ -253,7 +262,7 @@ class JDQuoteIntegrationService:
             
             logger.info(f"Requesting quote details for quote ID: {quote_id}")
             # Use the get_external_quote_status method which is already implemented in MaintainQuotesAPI
-            response = self.maintain_quotes_api.get_external_quote_status(quote_id)
+            response = await self.maintain_quotes_api.get_external_quote_status(quote_id)
             
             # Use the standard response handler
             handled_response = self._handle_api_response(response, f"retrieve quote details for {quote_id}")

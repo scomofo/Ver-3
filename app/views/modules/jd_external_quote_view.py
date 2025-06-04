@@ -1,4 +1,5 @@
 # app/views/modules/jd_external_quote_view.py
+import functools
 import logging
 import subprocess # For launching the external Tkinter app
 import sys
@@ -302,7 +303,20 @@ class JDExternalQuoteView(BaseViewModule):
             # Pass the input file path as a command-line argument to the Tkinter script
             cmd_args.extend(["--input-file", input_data_file])
 
-        worker = Worker(self._run_subprocess_and_get_output, cmd_args)
+        worker = Worker(None)  # Initialize fn as None temporarily
+
+        # Create a partial function that includes the status_callback
+        # self._run_subprocess_and_get_output expects (self, cmd_args_list, status_callback)
+        # The Worker will call fn(self, *args), so args for fn should be (cmd_args_list,)
+        # The partial will effectively make it so that when worker calls:
+        #   partial_fn(cmd_args)
+        # it translates to:
+        #   self._run_subprocess_and_get_output(cmd_args, status_callback=worker.signals.status)
+
+        partial_fn = functools.partial(self._run_subprocess_and_get_output, status_callback=worker.signals.status)
+
+        worker.fn = partial_fn
+        worker.args = (cmd_args,) # Pass cmd_args as a tuple for the *args in worker's run method
         worker.signals.result.connect(self._handle_external_app_result)
         worker.signals.error.connect(self._handle_external_app_error)
         worker.signals.status.connect(lambda msg: self.output_text_edit.append(msg)) # For live stdout/stderr from worker
@@ -431,13 +445,23 @@ class JDExternalQuoteView(BaseViewModule):
 
         self._cleanup_temp_file()
 
-    def _handle_external_app_error(self, error_tuple):
+    def _handle_external_app_error(self, exception_obj: Exception):
         """Handles errors from the worker running the external application (e.g., worker thread crashed)."""
         self.launch_button.setEnabled(True)
-        exctype, value, tb_str = error_tuple
-        self.logger.error(f"Error launching/running external quote app worker: {exctype} - {value}\nTraceback: {tb_str}")
-        self.output_text_edit.append(f"\n--- Error in Worker Thread for External App ---\n{value}")
-        QMessageBox.critical(self, "Launch Error", f"A worker thread error occurred while trying to run the external quote application: {value}")
+
+        # Log the full exception info (including traceback)
+        self.logger.error(
+            f"Error launching/running external quote app worker: {type(exception_obj).__name__} - {exception_obj}",
+            exc_info=exception_obj
+        )
+
+        error_message = str(exception_obj)
+        self.output_text_edit.append(f"\n--- Error in Worker Thread for External App ---\n{error_message}") # Escaped newline
+        QMessageBox.critical(
+            self,
+            "Launch Error",
+            f"A worker thread error occurred while trying to run the external quote application: {error_message}"
+        )
         self._cleanup_temp_file()
 
     def _cleanup_temp_file(self):
