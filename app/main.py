@@ -59,7 +59,7 @@ from app.views.modules.price_book_view import PriceBookView
 from app.views.modules.used_inventory_view import UsedInventoryView
 from app.views.modules.receiving_view import ReceivingView
 from app.views.modules.csv_editors_manager_view import CsvEditorsManagerView
-from app.views.modules.calculator_view import CalculatorView
+# from app.views.modules.calculator_view import CalculatorView # Removed
 from app.views.modules.jd_external_quote_view import JDExternalQuoteView
 from app.views.modules.invoice_module_view import InvoiceModuleView
 
@@ -432,7 +432,7 @@ class MainWindow(QMainWindow):
                ("used_inventory", self._create_used_inventory_view, "Used Inventory"),
                ("receiving", self._create_receiving_view, "Receiving"),
                ("csv_editors", self._create_csv_editors_view, "Data Editors"),
-               ("calculator", self._create_calculator_view, "Calculator"),
+                # ("calculator", self._create_calculator_view, "Calculator"), # Removed
                 ("jd_quote", self._create_jd_quote_view, "JD External Quote"), # module_key is "jd_quote"
                ("invoice", self._create_invoice_view, "Invoice")
            ]
@@ -578,17 +578,17 @@ class MainWindow(QMainWindow):
            self.logger.error(f"Failed to create CsvEditorsManagerView: {e}", exc_info=True)
            return None
 
-   def _create_calculator_view(self) -> Optional[CalculatorView]:
-       """Create calculator view with error handling"""
-       try:
-           return CalculatorView(
-               config=self.config,
-               main_window=self,
-               logger_instance=logging.getLogger("CalculatorViewLogger")
-           )
-       except Exception as e:
-           self.logger.error(f"Failed to create CalculatorView: {e}", exc_info=True)
-           return None
+   # def _create_calculator_view(self) -> Optional[CalculatorView]: # Removed
+   #     """Create calculator view with error handling"""
+   #     try:
+   #         return CalculatorView(
+   #             config=self.config,
+   #             main_window=self,
+   #             logger_instance=logging.getLogger("CalculatorViewLogger")
+   #         )
+   #     except Exception as e:
+   #         self.logger.error(f"Failed to create CalculatorView: {e}", exc_info=True)
+   #         return None
 
    def _create_jd_quote_view(self) -> Optional[JDExternalQuoteView]:
        """Create JD external quote view with error handling"""
