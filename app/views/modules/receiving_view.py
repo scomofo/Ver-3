@@ -258,7 +258,6 @@ class ReceivingView(BaseViewModule):
         layout.addWidget(self.output_log)
 
         layout.addStretch(1)
-        self.setLayout(layout)
 
     def _click_image(self, image_name, description, timeout=None, confidence=0.8, region=None):
         if self._stop_requested: self.logger.info(f"Stop requested, skipping click for '{description}'."); return "STOPPED"

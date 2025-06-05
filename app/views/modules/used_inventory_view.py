@@ -126,7 +126,6 @@ class UsedInventoryView(BaseViewModule):
             }
         """)
         main_layout.addWidget(self.inventory_table)
-        self.setLayout(main_layout)
     def get_icon_name(self): return "used_inventory_icon.png"
     def load_module_data(self):
         """Load used inventory data, trying cache first then SharePoint."""

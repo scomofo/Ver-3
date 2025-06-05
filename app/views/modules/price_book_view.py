@@ -475,7 +475,6 @@ class PriceBookView(BaseViewModule):
         """)
         
         main_layout.addWidget(self.price_table)
-        self.setLayout(main_layout)
         
     def get_icon_name(self): 
         return "price_book_icon.png"

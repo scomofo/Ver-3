@@ -220,7 +220,6 @@ class RecentDealsView(BaseViewModule):
         self.status_label.setStyleSheet("color: #6c757d; font-size: 10pt; padding: 5px;")
         main_layout.addWidget(self.status_label)
 
-        self.setLayout(main_layout)
 
     def load_module_data(self):
         """Load recent deals data with enhanced tracking"""
