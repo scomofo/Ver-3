@@ -46,7 +46,7 @@ except ImportError:
    SharePointManagerService = None
 
 from app.services.api_clients.quote_builder import QuoteBuilder
-from app.services.integrations.jd_auth_manager import JDAuthManager
+from app.services.integrations.jd_auth_manager import JDAuthManager, AuthenticationRequiredError
 from app.services.api_clients.jd_quote_client import JDQuoteApiClient
 from app.services.api_clients.maintain_quotes_api import MaintainQuotesAPI
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
@@ -306,7 +306,12 @@ class MainWindow(QMainWindow):
                    else:
                        token = self.jd_auth_manager_service.get_access_token()
                    jd_status = token is not None
-               except Exception:
+               except AuthenticationRequiredError:
+                   self.logger.info("JD API authentication required. Emitting signal.")
+                   self.authentication_required.emit("jd_api")
+                   jd_status = False
+               except Exception as e_token:
+                   self.logger.error(f"Error getting JD access token: {e_token}", exc_info=True)
                    jd_status = False
            else:
                jd_status = False
@@ -597,6 +602,7 @@ class MainWindow(QMainWindow):
                config=self.config,
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,
+               auth_manager=self.jd_auth_manager_service,  # Added this line
                logger_instance=logging.getLogger("JDExternalQuoteViewLogger")
            )
        except Exception as e:
@@ -610,6 +616,7 @@ class MainWindow(QMainWindow):
                config=self.config,
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,
+               auth_manager=self.jd_auth_manager_service,  # Added this line
                logger_instance=logging.getLogger("InvoiceModuleViewLogger")
            )
        except Exception as e:
@@ -728,28 +735,13 @@ class MainWindow(QMainWindow):
 
    def check_jd_authentication(self) -> bool:
        """Check John Deere API authentication with enhanced error handling"""
-       try:
-           if not self.jd_auth_manager_service:
-               self.logger.warning("JD Auth Manager not available for authentication check")
-               return False
-           
-           if not self.jd_auth_manager_service.is_operational:
-               self.logger.warning("JD Auth Manager is not operational")
-               return False
-           
-           # Check for valid token
-           token = self.jd_auth_manager_service.get_access_token()
-           if token:
-               self.logger.info("JD API authentication token is available and valid")
-               return True
-           
-           # No valid token - prompt for authentication
-           self.logger.info("No valid JD API token found, showing authentication dialog")
-           return self._prompt_jd_authentication()
-           
-       except Exception as e:
-           self.logger.error(f"Error checking JD authentication: {e}", exc_info=True)
+       if not self.jd_auth_manager_service or not self.jd_auth_manager_service.is_operational:
+           self.logger.warning("JD Auth Manager not available/operational for prompting.")
+           QMessageBox.critical(self, "Configuration Error", "JD Authentication service is not configured correctly.")
            return False
+       # If called due to authentication_required signal, we know we need to prompt.
+       self.logger.info("JD API authentication is required. Prompting user via JDAuthDialog.")
+       return self._prompt_jd_authentication()
 
    def _prompt_jd_authentication(self) -> bool:
        """Prompt user for JD authentication with PyQt6 updates"""
@@ -792,6 +784,8 @@ class MainWindow(QMainWindow):
                # Update integration service operational status
                if self.jd_quote_integration_service:
                    self.jd_quote_integration_service.is_operational = True
+               self.logger.info("Authentication successful, re-checking JD service status.")
+               self._check_service_status() # Re-trigger the async status check
            else:
                self.logger.warning(f"JD API authentication failed: {message}")
                self.show_status_message("John Deere API authentication failed", "warning")
@@ -1107,14 +1101,11 @@ async def _fix_authentication_config(config: BRIDealConfig, jd_auth_manager: JDA
        
        # Check authentication status
        if jd_auth_manager and jd_auth_manager.is_operational:
-           logger.info("Checking JD API authentication status on startup")
-           token = jd_auth_manager.get_access_token()
-           if asyncio.iscoroutinefunction(jd_auth_manager.get_access_token):
-               token = await jd_auth_manager.get_access_token()
-           else:
-               token = jd_auth_manager.get_access_token()
-           if not token:
-               logger.info("No valid JD API token found at startup")
+           logger.info("JDAuthManager is operational. Token status will be checked by MainWindow.")
+           # Removed direct token check here to avoid raising AuthenticationRequiredError during startup.
+           # MainWindow's _check_service_status_async will handle token checks and signals.
+       else:
+           logger.warning("JDAuthManager is not operational or not available.")
        
    except ImportError:
        logger.warning("JD auth improvements module not available")
