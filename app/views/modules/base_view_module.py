@@ -58,7 +58,13 @@ class BaseViewModule(QWidget):
         self.logger.info(f"{self.module_name} initialized.")
 
     def setLayout(self, new_layout):
-        logger_to_use = getattr(self, 'logger', logging.getLogger(getattr(self, 'module_name', self.__class__.__name__)))
+        module_display_name = getattr(self, 'module_name', self.__class__.__name__)
+        instance_id = id(self)
+
+        # Unmissable print statements
+        print(f"PRINT_DIAG_SETLAYOUT_ENTRY: Class={module_display_name}, Instance={instance_id}, NewLayout={new_layout}")
+
+        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
 
         caller_name = "UnknownCaller"
         caller_filename = "UnknownFile"
@@ -67,24 +73,29 @@ class BaseViewModule(QWidget):
             caller_name = caller_frame.f_code.co_name
             caller_filename = caller_frame.f_code.co_filename
         except Exception as e:
-            logger_to_use.debug(f"Could not get caller frame for setLayout: {e}")
+            logger_to_use.debug(f"Could not get caller frame for setLayout for {module_display_name} (instance {instance_id}): {e}")
 
         existing_layout = self.layout()
-        instance_id = id(self)
-        module_display_name = getattr(self, 'module_name', self.__class__.__name__)
-
         log_prefix = f"DIAGNOSTIC_SETLAYOUT: Class={module_display_name}, Instance={instance_id}, Caller={caller_name} in {caller_filename}"
 
         logger_to_use.info(f"{log_prefix} --- setLayout ENTRY --- NewLayout={new_layout}, ExistingLayout={existing_layout}")
+        print(f"PRINT_DIAG_SETLAYOUT_INFO: {log_prefix} --- ENTRY --- NewLayout={new_layout}, ExistingLayout={existing_layout}")
+
 
         if existing_layout is not None:
             if existing_layout == new_layout:
                 logger_to_use.info(f"{log_prefix} - INFO: Attempting to set the SAME layout object that is already set.")
+                print(f"PRINT_DIAG_SETLAYOUT_INFO: {log_prefix} - INFO: Setting SAME layout.")
             else:
                 logger_to_use.warning(f"{log_prefix} - WARNING: ALREADY HAS A DIFFERENT LAYOUT ({existing_layout}). Attempting to set NewLayout: {new_layout}.")
+                print(f"PRINT_DIAG_SETLAYOUT_WARNING: {log_prefix} - WARNING: ALREADY HAS DIFFERENT LAYOUT.")
+        else:
+            logger_to_use.info(f"{log_prefix} - INFO: No existing layout. Setting new layout.")
+            print(f"PRINT_DIAG_SETLAYOUT_INFO: {log_prefix} - INFO: No existing layout.")
 
-        super().setLayout(new_layout) # Calls QWidget.setLayout (or next in MRO)
-
+        print(f"PRINT_DIAG_SETLAYOUT_BEFORE_SUPER: {log_prefix}. Current self.layout() is {self.layout()}. Calling super().setLayout({new_layout}).")
+        super().setLayout(new_layout)
+        print(f"PRINT_DIAG_SETLAYOUT_AFTER_SUPER: {log_prefix}. Current self.layout() is {self.layout()}.")
         logger_to_use.info(f"{log_prefix} --- setLayout EXIT --- Layout_After_SuperCall={self.layout()}")
 
     # def _init_base_ui(self):

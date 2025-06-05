@@ -83,34 +83,6 @@ class CsvEditorBase(BaseViewModule):
         self._set_sharepoint_url()
         self._init_ui()
         self.load_csv_data()
-
-    def setLayout(self, layout):
-        # Determine a module name for logging, fallback if not available
-        module_display_name = "UnknownModule"
-        if hasattr(self, 'module_name') and self.module_name:
-            module_display_name = self.module_name
-        elif hasattr(self, '__class__') and hasattr(self.__class__, '__name__'):
-            module_display_name = self.__class__.__name__
-
-        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
-
-        try:
-            caller_frame = sys._getframe(1) # Get the frame of the caller
-            caller_name = caller_frame.f_code.co_name
-            caller_filename = caller_frame.f_code.co_filename
-        except Exception: # Fallback in case _getframe fails
-            caller_name = "UnknownCaller"
-            caller_filename = "UnknownFile"
-
-        logger_to_use.debug(f"{module_display_name} (instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
-
-        current_layout = self.layout()
-        if current_layout is not None and current_layout != layout:
-            logger_to_use.warning(f"{module_display_name} (instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
-        elif current_layout is not None and current_layout == layout:
-            logger_to_use.info(f"{module_display_name} (instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
-
-        super(CsvEditorBase, self).setLayout(layout)
     
     def _set_sharepoint_url(self):
         base_url_config_key = "SHAREPOINT_APP_RESOURCES_URL"
