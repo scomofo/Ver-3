@@ -1300,7 +1300,83 @@ class DealFormView(QWidget):
         except Exception as e: self.logger.error(f"Error saving CSV locally: {e}", exc_info=True); QMessageBox.critical(self, "Save Error", f"Could not save CSV:\n{e}"); return False
 
     def generate_email(self):
-        self.logger.info("Email generation placeholder"); self._show_status_message("Email generation not yet implemented", 3000); return True
+        self.logger.info(f"Starting email generation for {self.module_name}...")
+        self._show_status_message("Generating email details...", 2000)
+
+        customer_name = self.customer_name.text().strip()
+        salesperson_name = self.salesperson.text().strip()
+
+        to_addrs = ['amsdeals@briltd.com']
+        salesperson_email_found = False
+        if salesperson_name and self.salesmen_data:
+            salesperson_info = self.salesmen_data.get(salesperson_name)
+            if salesperson_info:
+                # Try common keys for email, case-insensitively if possible, though self.salesmen_data keys are as per CSV headers
+                # Using _find_key_case_insensitive helper if available, otherwise direct get
+                email_key = self._find_key_case_insensitive(salesperson_info, 'Email') or \
+                            self._find_key_case_insensitive(salesperson_info, 'E-mail') or \
+                            self._find_key_case_insensitive(salesperson_info, 'Email Address')
+
+                salesperson_email = salesperson_info.get(email_key) if email_key else None
+
+                if salesperson_email and salesperson_email.strip():
+                    to_addrs.append(salesperson_email.strip())
+                    salesperson_email_found = True
+                    self.logger.info(f"Salesperson email '{salesperson_email.strip()}' added to recipients.")
+                else:
+                    self.logger.warning(f"Salesperson '{salesperson_name}' found, but email is missing or empty. Email keys tried: 'Email', 'E-mail', 'Email Address'. Found key: {email_key if salesperson_email is not None else 'None'}.")
+            else:
+                self.logger.warning(f"Salesperson '{salesperson_name}' not found in salesmen data.")
+        else:
+            self.logger.info("Salesperson name not provided or salesmen data not loaded. Skipping salesperson email.")
+
+        subject = f"Deal Information for {customer_name}"
+
+        body_parts = [
+            f"Deal Details for Customer: {customer_name}",
+            f"Salesperson: {salesperson_name}\n"
+        ]
+
+        if self.equipment_list.count() > 0:
+            equipment_summary = [f"  - {self.equipment_list.item(i).text()}" for i in range(self.equipment_list.count())]
+            body_parts.append("Equipment Items:\n" + "\n".join(equipment_summary))
+        else:
+            body_parts.append("Equipment Items: None")
+
+        body_parts.append("\n") # Add a blank line for separation
+
+        if self.trade_list.count() > 0:
+            trade_summary = [f"  - {self.trade_list.item(i).text()}" for i in range(self.trade_list.count())]
+            body_parts.append("Trade-in Items:\n" + "\n".join(trade_summary))
+        else:
+            body_parts.append("Trade-in Items: None")
+
+        body_parts.append("\n")
+
+        if self.part_list.count() > 0:
+            part_summary = [f"  - {self.part_list.item(i).text()}" for i in range(self.part_list.count())]
+            body_parts.append("Parts Items:\n" + "\n".join(part_summary))
+        else:
+            body_parts.append("Parts Items: None")
+
+        body_parts.append("\n")
+
+        deal_notes = self.deal_notes_textedit.toPlainText().strip() if hasattr(self, 'deal_notes_textedit') else ""
+        if deal_notes:
+            body_parts.append(f"Deal Notes:\n{deal_notes}")
+        else:
+            body_parts.append("Deal Notes: None")
+
+        email_body = "\n".join(body_parts)
+
+        self.logger.info("--- Email Details ---")
+        self.logger.info(f"To: {', '.join(to_addrs)}")
+        self.logger.info(f"Subject: {subject}")
+        self.logger.info(f"Body:\n{email_body}")
+        self.logger.info("--- End of Email Details ---")
+
+        self._show_status_message("Email details logged. Check application logs.", 5000)
+        return True # Indicate success for now, as we are logging not sending
 
     def generate_csv_and_email(self):
         self.logger.info(f"Initiating 'Generate All' for {self.module_name}...")
