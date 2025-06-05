@@ -138,60 +138,60 @@ class JDExternalQuoteView(BaseViewModule):
                 return
 
             # Check primary service for launching external tool (can be old or new)
-        # For now, let's assume jd_maintain_quote_service is a prerequisite for new functionalities
-        # that the external tool might rely on.
-        can_launch_external_tool = True
-        tooltip_messages = []
-        status_text_messages = []
+            # For now, let's assume jd_maintain_quote_service is a prerequisite for new functionalities
+            # that the external tool might rely on.
+            can_launch_external_tool = True
+            tooltip_messages = []
+            status_text_messages = []
 
-        # Check new services status
-        if not (self.jd_maintain_quote_service and self.jd_maintain_quote_service.is_operational):
-            msg = "JD Maintain Quote Service is not operational."
-            self.logger.warning(f"{self.module_name}: {msg}")
-            tooltip_messages.append(msg)
-            status_text_messages.append(msg)
-            can_launch_external_tool = False # Or decide if this is critical for launch
+            # Check new services status
+            if not (self.jd_maintain_quote_service and self.jd_maintain_quote_service.is_operational):
+                msg = "JD Maintain Quote Service is not operational."
+                self.logger.warning(f"{self.module_name}: {msg}")
+                tooltip_messages.append(msg)
+                status_text_messages.append(msg)
+                can_launch_external_tool = False # Or decide if this is critical for launch
 
-        if not (self.jd_quote_data_service and self.jd_quote_data_service.is_operational):
-            msg = "JD Quote Data Service is not operational."
-            self.logger.warning(f"{self.module_name}: {msg}")
-            # This might not be critical for launching the tool, but for auxiliary functions.
-            # For now, let's not make it disable the launch button unless it's essential.
-            # tooltip_messages.append(msg)
-            # status_text_messages.append(msg)
+            if not (self.jd_quote_data_service and self.jd_quote_data_service.is_operational):
+                msg = "JD Quote Data Service is not operational."
+                self.logger.warning(f"{self.module_name}: {msg}")
+                # This might not be critical for launching the tool, but for auxiliary functions.
+                # For now, let's not make it disable the launch button unless it's essential.
+                # tooltip_messages.append(msg)
+                # status_text_messages.append(msg)
 
 
-        # Check old service status (if still relevant for some core functionality)
-        if not (self.jd_quote_integration_service and self.jd_quote_integration_service.is_operational):
-            msg = "Legacy JDQuoteIntegrationService is not operational."
-            self.logger.warning(f"{self.module_name}: {msg}")
-            tooltip_messages.append(msg)
-            status_text_messages.append(msg)
-            can_launch_external_tool = False # If this is still a primary requirement
+            # Check old service status (if still relevant for some core functionality)
+            if not (self.jd_quote_integration_service and self.jd_quote_integration_service.is_operational):
+                msg = "Legacy JDQuoteIntegrationService is not operational."
+                self.logger.warning(f"{self.module_name}: {msg}")
+                tooltip_messages.append(msg)
+                status_text_messages.append(msg)
+                can_launch_external_tool = False # If this is still a primary requirement
 
-        tkinter_app_script_path = self.config.get(CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH)
-        if not tkinter_app_script_path:
-            msg = (f"Path to the JD Quote (Tkinter) application script "
-                   f"({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) is not configured.")
-            self.logger.warning(f"{self.module_name}: {msg} Launch disabled.")
-            tooltip_messages.append(msg)
-            status_text_messages.append("Configuration Error: Path to external JD quoting app is not set.")
-            can_launch_external_tool = False
+            tkinter_app_script_path = self.config.get(CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH)
+            if not tkinter_app_script_path:
+                msg = (f"Path to the JD Quote (Tkinter) application script "
+                       f"({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) is not configured.")
+                self.logger.warning(f"{self.module_name}: {msg} Launch disabled.")
+                tooltip_messages.append(msg)
+                status_text_messages.append("Configuration Error: Path to external JD quoting app is not set.")
+                can_launch_external_tool = False
 
-        if can_launch_external_tool:
-            self.logger.info(f"{self.module_name}: Ready to launch external JD quoting tool.")
-            self.launch_button.setEnabled(True)
-            self.launch_button.setToolTip("Launches the external John Deere quoting application.")
-            current_text = self.output_text_edit.toPlainText()
-            if any(err_msg in current_text for err_msg in ["Configuration Error", "Service is not operational"]):
-                 self.output_text_edit.clear()
-            self.output_text_edit.setPlaceholderText("Output from the external application will appear here...")
-        else:
-            final_tooltip = "Cannot launch external quoting tool: " + " | ".join(tooltip_messages)
-            final_status_text = "\n".join(status_text_messages)
-            self.launch_button.setToolTip(final_tooltip)
-            self.launch_button.setEnabled(False)
-            self.output_text_edit.setText(final_status_text)
+            if can_launch_external_tool:
+                self.logger.info(f"{self.module_name}: Ready to launch external JD quoting tool.")
+                self.launch_button.setEnabled(True)
+                self.launch_button.setToolTip("Launches the external John Deere quoting application.")
+                current_text = self.output_text_edit.toPlainText()
+                if any(err_msg in current_text for err_msg in ["Configuration Error", "Service is not operational"]):
+                     self.output_text_edit.clear()
+                self.output_text_edit.setPlaceholderText("Output from the external application will appear here...")
+            else:
+                final_tooltip = "Cannot launch external quoting tool: " + " | ".join(tooltip_messages)
+                final_status_text = "\n".join(status_text_messages)
+                self.launch_button.setToolTip(final_tooltip)
+                self.launch_button.setEnabled(False)
+                self.output_text_edit.setText(final_status_text)
 
         except RuntimeError as e:
             self.logger.warning(f"{self.module_name}: RuntimeError in _update_ui_status. View likely deleted. Error: {e}")
