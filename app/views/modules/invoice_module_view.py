@@ -124,20 +124,20 @@ class InvoiceModuleView(BaseViewModule):
         main_layout.addWidget(quote_info_group)
         # --- End of UNCOMMENTED/RESTORED Quote info section ---
 
-        # # Equipment section
-        # equipment_group = QGroupBox("Equipment")
-        # equipment_layout = QVBoxLayout()
+        # Equipment section
+        equipment_group = QGroupBox("Equipment")
+        equipment_layout = QVBoxLayout()
 
-        # self.equipment_table = QTableWidget(0, 4)  # rows, columns
-        # self.equipment_table.setHorizontalHeaderLabels(["Model", "Serial #", "Order #", "Price"])
-        # self.equipment_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        # self.equipment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        # self.equipment_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        # self.equipment_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.equipment_table = QTableWidget(0, 4)  # rows, columns
+        self.equipment_table.setHorizontalHeaderLabels(["Model", "Serial #", "Order #", "Price"])
+        self.equipment_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.equipment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.equipment_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.equipment_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 
-        # equipment_layout.addWidget(self.equipment_table)
-        # equipment_group.setLayout(equipment_layout)
-        # main_layout.addWidget(equipment_group)
+        equipment_layout.addWidget(self.equipment_table)
+        equipment_group.setLayout(equipment_layout)
+        main_layout.addWidget(equipment_group)
 
         # # Trade-ins section
         # tradein_group = QGroupBox("Trade-ins")
