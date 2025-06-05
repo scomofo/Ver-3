@@ -21,7 +21,7 @@ class JDMaintainQuoteApiClient:
     def __init__(self, config: BRIDealConfig, auth_manager: JDAuthManager):
         self.config = config
         self.auth_manager = auth_manager
-        self.base_url = self.config.jd_quote2_api_base_url.rstrip('/')
+        self.base_url = getattr(self.config, 'jd_quote2_api_base_url', "https://jdquote2-api.deere.com").rstrip('/')
         self.timeout = aiohttp.ClientTimeout(total=config.api_timeout)
         self.session: Optional[aiohttp.ClientSession] = None
         self._lock = asyncio.Lock()
