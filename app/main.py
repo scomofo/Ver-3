@@ -61,7 +61,7 @@ from app.views.modules.receiving_view import ReceivingView
 from app.views.modules.csv_editors_manager_view import CsvEditorsManagerView
 # from app.views.modules.calculator_view import CalculatorView # Removed
 from app.views.modules.jd_external_quote_view import JDExternalQuoteView
-from app.views.modules.invoice_module_view import InvoiceModuleView
+from app.views.modules.invoice_module_view import InvoiceModuleView, MinimalInvoiceView
 
 # Main Window and Splash Screen
 from app.views.main_window.splash_screen_view import SplashScreenView
@@ -609,10 +609,10 @@ class MainWindow(QMainWindow):
            self.logger.error(f"Failed to create JDExternalQuoteView: {e}", exc_info=True)
            return None
 
-   def _create_invoice_view(self) -> Optional[InvoiceModuleView]:
+   def _create_invoice_view(self) -> Optional[MinimalInvoiceView]:
        """Create invoice view with error handling"""
        try:
-           return InvoiceModuleView(
+           return MinimalInvoiceView(
                config=self.config,
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,

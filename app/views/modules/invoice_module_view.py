@@ -915,3 +915,140 @@ class InvoiceModuleView(BaseViewModule):
             self.logger.error(f"RuntimeError during close_services task creation (event loop may be stopped): {e}")
             # Fallback or synchronous close if possible and necessary, though services are async
         super().closeEvent(event) # Call base class closeEvent
+
+
+# (Keep existing imports and InvoiceModuleView class above this)
+
+class MinimalInvoiceView(QWidget):
+    def __init__(self,
+                 config: Optional[BRIDealConfig] = None,
+                 auth_manager: Optional[JDAuthManager] = None, # Kept for signature consistency if main.py passes it
+                 jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
+                 logger_instance: Optional[logging.Logger] = None,
+                 main_window: Optional[QWidget] = None, # Kept for signature consistency
+                 parent: Optional[QWidget] = None):
+        super().__init__(parent)
+
+        self.config = config
+        self.auth_manager = auth_manager # Not strictly used in this minimal version's fetch
+        self.jd_quote_service = jd_quote_integration_service # This is the one we'll use
+        self.logger = logger_instance or logging.getLogger("MinimalInvoiceViewLogger")
+        self.main_window = main_window
+
+        self.current_quote_id = None
+        self.current_dealer_account_no = None
+        self.quote_details = None
+        self.thread_pool = QThreadPool.globalInstance()
+
+        # Basic UI
+        layout = QVBoxLayout(self) # Sets layout for this QWidget
+
+        self.title_label = QLabel("Minimal Invoice View")
+        font = QFont("Arial", 16, QFont.Weight.Bold)
+        self.title_label.setFont(font)
+
+        self.quote_id_label = QLabel("Quote ID: [Not Loaded]")
+        self.customer_name_label = QLabel("Customer: [Not Loaded]")
+        self.status_label = QLabel("Status: Initialized")
+
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.quote_id_label)
+        layout.addWidget(self.customer_name_label)
+        layout.addWidget(self.status_label)
+        layout.addStretch()
+
+        self.logger.info("MinimalInvoiceView initialized.")
+
+    def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
+        self.logger.info(f"MinimalInvoiceView: Initiating invoice from quote ID: {quote_id}")
+        self.current_quote_id = quote_id
+        self.current_dealer_account_no = dealer_account_no
+
+        self.quote_id_label.setText(f"Quote ID: {self.current_quote_id}")
+        self.customer_name_label.setText("Customer: [Loading...]")
+        self.status_label.setText(f"Status: Loading quote {self.current_quote_id}...")
+
+        if self.current_quote_id and self.current_dealer_account_no:
+            self._fetch_quote_details()
+
+    def _fetch_quote_details(self):
+        self.logger.debug(f"MinimalInvoiceView: Fetching details for {self.current_quote_id}")
+        if not self.jd_quote_service:
+            self.logger.error("MinimalInvoiceView: JDQuoteIntegrationService (jd_quote_service) is not available.")
+            self.status_label.setText("Status: Error - JD Quote Service not configured.")
+            QMessageBox.critical(self, "Service Error", "JD Quote Service not available.")
+            return
+
+        if not self.jd_quote_service.is_operational:
+            self.logger.warning("MinimalInvoiceView: JDQuoteIntegrationService is not operational.")
+            self.status_label.setText("Status: Warning - JD Quote Service not operational.")
+            # QMessageBox.warning(self, "Service Warning", "JD Quote Service is not currently operational.")
+            # Allow to proceed, API call will likely fail and be handled
+
+        self.status_label.setText(f"Status: Fetching quote data for {self.current_quote_id}...")
+
+        def get_quote_details_wrapper(*args, **kwargs):
+            return self.jd_quote_service.get_quote_details_via_api(
+                self.current_quote_id, self.current_dealer_account_no
+            )
+
+        worker = Worker(get_quote_details_wrapper)
+        worker.signals.result.connect(self._handle_minimal_quote_details_result)
+        worker.signals.error.connect(self._handle_minimal_quote_details_error)
+        self.thread_pool.start(worker)
+
+    def _handle_minimal_quote_details_result(self, response_data: dict):
+        self.logger.debug(f"MinimalInvoiceView: Received quote details result: {response_data.get('type', 'Unknown type')}")
+        if response_data.get("type") == "SUCCESS" and response_data.get("body"):
+            self.quote_details = response_data.get("body")
+            self.logger.info(f"MinimalInvoiceView: Successfully retrieved quote details for {self.current_quote_id}")
+            self._update_minimal_ui_with_quote_details()
+            self.status_label.setText(f"Status: Quote {self.current_quote_id} loaded.")
+        else:
+            error_msg = response_data.get("body", {}).get("errorMessage", "Unknown API error or empty body.")
+            self.logger.error(f"MinimalInvoiceView: Quote details retrieval failed or empty: {error_msg}")
+            self.status_label.setText(f"Status: Failed to load quote - {error_msg}")
+            self.customer_name_label.setText("Customer: [Error]")
+            QMessageBox.warning(self, "API Error", f"Could not retrieve quote details: {error_msg}")
+
+
+    def _handle_minimal_quote_details_error(self, error_info: tuple):
+        try:
+            exc_type, exc_value, exc_traceback = error_info
+            error_msg = str(exc_value)
+        except (ValueError, TypeError):
+            error_msg = str(error_info) # Fallback
+
+        self.logger.error(f"MinimalInvoiceView: Error fetching quote details: {error_msg}", exc_info=True)
+        self.status_label.setText(f"Status: Error - {error_msg}")
+        self.customer_name_label.setText("Customer: [Error]")
+        QMessageBox.critical(self, "Fetch Error", f"An error occurred while fetching quote details: {error_msg}")
+
+    def _update_minimal_ui_with_quote_details(self):
+        if not self.quote_details:
+            self.logger.warning("MinimalInvoiceView: _update_minimal_ui_with_quote_details called with no details.")
+            return
+
+        customer_data = self.quote_details.get("customerData", {})
+        customer_name = f"{customer_data.get('customerFirstName', '')} {customer_data.get('customerLastName', '')}".strip()
+
+        self.customer_name_label.setText(f"Customer: {customer_name or 'N/A'}")
+        # Quote ID label is already set in initiate_invoice_from_quote
+
+        self.logger.info(f"MinimalInvoiceView: UI updated for quote {self.current_quote_id}, Customer: {customer_name or 'N/A'}")
+
+    # Required by MainWindow module loading if it expects BaseViewModule features
+    def get_icon_name(self):
+        return "invoice_icon.png" # Or None, or a generic one
+
+    def get_title(self):
+        return "Minimal Invoice"
+
+    def load_module_data(self): # Add this method
+        self.logger.debug(f"MinimalInvoiceView: load_module_data called for {self.current_quote_id}")
+        # If there's a current quote, try to fetch/refresh its details
+        # This might be triggered when the tab becomes active.
+        # For now, we only load data via initiate_invoice_from_quote.
+        # If self.current_quote_id:
+        #    self._fetch_quote_details()
+        pass
