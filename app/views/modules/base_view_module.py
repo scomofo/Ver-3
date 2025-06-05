@@ -58,26 +58,32 @@ class BaseViewModule(QWidget):
         self.logger.info(f"{self.module_name} initialized.")
 
     def setLayout(self, layout):
-        # Use self.logger if available (set in __init__), else use the module-level logger
-        logger_to_use = getattr(self, 'logger', logging.getLogger(__name__))
+        # Determine a module name for logging, fallback if not available
+        module_display_name = "UnknownModule"
+        if hasattr(self, 'module_name') and self.module_name:
+            module_display_name = self.module_name
+        elif hasattr(self, '__class__') and hasattr(self.__class__, '__name__'):
+            module_display_name = self.__class__.__name__
+
+        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
 
         try:
             caller_frame = sys._getframe(1) # Get the frame of the caller
             caller_name = caller_frame.f_code.co_name
             caller_filename = caller_frame.f_code.co_filename
-        except Exception: # Fallback in case _getframe fails (e.g. in some execution contexts)
+        except Exception: # Fallback in case _getframe fails
             caller_name = "UnknownCaller"
             caller_filename = "UnknownFile"
 
-        logger_to_use.debug(f"BaseViewModule ({getattr(self, 'module_name', 'UnknownModule')} - instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
+        logger_to_use.debug(f"{module_display_name} (instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
 
         current_layout = self.layout()
         if current_layout is not None and current_layout != layout:
-            logger_to_use.warning(f"BaseViewModule ({getattr(self, 'module_name', 'UnknownModule')} - instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
+            logger_to_use.warning(f"{module_display_name} (instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
         elif current_layout is not None and current_layout == layout:
-            logger_to_use.info(f"BaseViewModule ({getattr(self, 'module_name', 'UnknownModule')} - instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
+            logger_to_use.info(f"{module_display_name} (instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
 
-        super(BaseViewModule, self).setLayout(layout) # Call QWidget.setLayout
+        super().setLayout(layout) # Call QWidget.setLayout (or the next in MRO)
 
     # def _init_base_ui(self):
     #     """
@@ -110,6 +116,12 @@ class BaseViewModule(QWidget):
         if not self.main_window:
             self.logger.warning("Main window reference requested but not available.")
         return self.main_window
+
+    def get_content_container(self) -> QWidget:
+        # Returns the widget itself as the primary container for content.
+        # Subclasses can override this if they have a more specific content area widget.
+        self.logger.debug(f"BaseViewModule.get_content_container called for {self.module_name} (instance: {id(self)}), returning self.")
+        return self
 
     def show_notification(self, message: str, level: str = "info"):
         """

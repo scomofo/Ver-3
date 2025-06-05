@@ -227,25 +227,32 @@ class InvoiceModuleView(BaseViewModule):
             self.view_po_pdf_btn.setEnabled(True)
 
     def setLayout(self, layout):
-        # Get the caller's frame information
-        caller_frame = sys._getframe(1) # Get the frame of the caller
-        caller_name = caller_frame.f_code.co_name
-        caller_filename = caller_frame.f_code.co_filename
+        # Determine a module name for logging, fallback if not available
+        module_display_name = "UnknownModule"
+        if hasattr(self, 'module_name') and self.module_name:
+            module_display_name = self.module_name
+        elif hasattr(self, '__class__') and hasattr(self.__class__, '__name__'):
+            module_display_name = self.__class__.__name__
 
-        # Ensure self.logger is available, fallback to print if not (though it should be)
-        _log_debug = getattr(self.logger, "debug", print)
-        _log_warning = getattr(self.logger, "warning", print)
-        _log_info = getattr(self.logger, "info", print)
+        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
 
-        _log_debug(f"InvoiceModuleView.setLayout CALLED by: {caller_name} in {caller_filename} (instance: {id(self)}) with layout object: {layout}")
+        try:
+            caller_frame = sys._getframe(1) # Get the frame of the caller
+            caller_name = caller_frame.f_code.co_name
+            caller_filename = caller_frame.f_code.co_filename
+        except Exception: # Fallback in case _getframe fails
+            caller_name = "UnknownCaller"
+            caller_filename = "UnknownFile"
+
+        logger_to_use.debug(f"{module_display_name} (instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
 
         current_layout = self.layout()
         if current_layout is not None and current_layout != layout:
-            _log_warning(f"InvoiceModuleView (instance {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
+            logger_to_use.warning(f"{module_display_name} (instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
         elif current_layout is not None and current_layout == layout:
-            _log_info(f"InvoiceModuleView.setLayout called with the SAME layout object (instance: {id(self)}). Caller: {caller_name} in {caller_filename}")
+            logger_to_use.info(f"{module_display_name} (instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
 
-        super(InvoiceModuleView, self).setLayout(layout) # Explicitly call super of InvoiceModuleView
+        super(InvoiceModuleView, self).setLayout(layout)
 
     async def _initialize_services(self):
         # This method would be called by the application's event loop or a dedicated task runner

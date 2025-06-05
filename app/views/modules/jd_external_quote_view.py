@@ -84,6 +84,34 @@ class JDExternalQuoteView(BaseViewModule):
 
         self._update_ui_status() # Initial UI status update
 
+    def setLayout(self, layout):
+        # Determine a module name for logging, fallback if not available
+        module_display_name = "UnknownModule"
+        if hasattr(self, 'module_name') and self.module_name:
+            module_display_name = self.module_name
+        elif hasattr(self, '__class__') and hasattr(self.__class__, '__name__'):
+            module_display_name = self.__class__.__name__
+
+        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
+
+        try:
+            caller_frame = sys._getframe(1) # Get the frame of the caller
+            caller_name = caller_frame.f_code.co_name
+            caller_filename = caller_frame.f_code.co_filename
+        except Exception: # Fallback in case _getframe fails
+            caller_name = "UnknownCaller"
+            caller_filename = "UnknownFile"
+
+        logger_to_use.debug(f"{module_display_name} (instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
+
+        current_layout = self.layout()
+        if current_layout is not None and current_layout != layout:
+            logger_to_use.warning(f"{module_display_name} (instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
+        elif current_layout is not None and current_layout == layout:
+            logger_to_use.info(f"{module_display_name} (instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
+
+        super(JDExternalQuoteView, self).setLayout(layout)
+
     async def _initialize_jd_services(self):
         self.logger.info(f"{self.module_name}: Initializing JD services...")
         if self.auth_manager and self.auth_manager.is_operational: # is_operational or is_configured

@@ -85,8 +85,14 @@ class CsvEditorBase(BaseViewModule):
         self.load_csv_data()
 
     def setLayout(self, layout):
-        # Use self.logger if available (set in __init__), else use the module-level logger
-        logger_to_use = getattr(self, 'logger', logging.getLogger(__name__))
+        # Determine a module name for logging, fallback if not available
+        module_display_name = "UnknownModule"
+        if hasattr(self, 'module_name') and self.module_name:
+            module_display_name = self.module_name
+        elif hasattr(self, '__class__') and hasattr(self.__class__, '__name__'):
+            module_display_name = self.__class__.__name__
+
+        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
 
         try:
             caller_frame = sys._getframe(1) # Get the frame of the caller
@@ -96,15 +102,15 @@ class CsvEditorBase(BaseViewModule):
             caller_name = "UnknownCaller"
             caller_filename = "UnknownFile"
 
-        logger_to_use.debug(f"CsvEditorBase ({getattr(self, 'module_name', 'UnknownCsvEditor')} - instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
+        logger_to_use.debug(f"{module_display_name} (instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
 
         current_layout = self.layout()
         if current_layout is not None and current_layout != layout:
-            logger_to_use.warning(f"CsvEditorBase ({getattr(self, 'module_name', 'UnknownCsvEditor')} - instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}). New: {layout}. Caller: {caller_name} in {caller_filename}")
+            logger_to_use.warning(f"{module_display_name} (instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
         elif current_layout is not None and current_layout == layout:
-            logger_to_use.info(f"CsvEditorBase ({getattr(self, 'module_name', 'UnknownCsvEditor')} - instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
+            logger_to_use.info(f"{module_display_name} (instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
 
-        super(CsvEditorBase, self).setLayout(layout) # Call BaseViewModule.setLayout (or QWidget.setLayout if BaseViewModule doesn't override it)
+        super(CsvEditorBase, self).setLayout(layout)
     
     def _set_sharepoint_url(self):
         base_url_config_key = "SHAREPOINT_APP_RESOURCES_URL"
