@@ -86,113 +86,123 @@ class InvoiceModuleView(BaseViewModule):
         main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Header
-        title_label = QLabel("Invoice from Quote")
-        title_font = QFont("Arial", 16, QFont.Weight.Bold)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
+        # title_label = QLabel("Invoice from Quote")
+        # title_font = QFont("Arial", 16, QFont.Weight.Bold)
+        # title_label.setFont(title_font)
+        # title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
+        # main_layout.addWidget(title_label)
+
+        # # Quote info section
+        # quote_info_group = QGroupBox("Quote Information")
+        # quote_info_layout = QFormLayout()
+
+        # self.quote_id_field = QLineEdit()
+        # self.quote_id_field.setReadOnly(True)
+
+        # self.customer_name_field = QLineEdit()
+        # self.customer_name_field.setReadOnly(True)
+
+        # self.salesperson_field = QLineEdit()
+        # self.salesperson_field.setReadOnly(True)
+
+        # self.creation_date_field = QLineEdit()
+        # self.creation_date_field.setReadOnly(True)
+
+        # quote_info_layout.addRow("Quote ID:", self.quote_id_field)
+        # quote_info_layout.addRow("Customer:", self.customer_name_field)
+        # quote_info_layout.addRow("Salesperson:", self.salesperson_field)
+        # quote_info_layout.addRow("Created:", self.creation_date_field)
+
+        # quote_info_group.setLayout(quote_info_layout)
+        # main_layout.addWidget(quote_info_group)
+
+        # # Equipment section
+        # equipment_group = QGroupBox("Equipment")
+        # equipment_layout = QVBoxLayout()
+
+        # self.equipment_table = QTableWidget(0, 4)  # rows, columns
+        # self.equipment_table.setHorizontalHeaderLabels(["Model", "Serial #", "Order #", "Price"])
+        # self.equipment_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        # self.equipment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        # self.equipment_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        # self.equipment_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+
+        # equipment_layout.addWidget(self.equipment_table)
+        # equipment_group.setLayout(equipment_layout)
+        # main_layout.addWidget(equipment_group)
+
+        # # Trade-ins section
+        # tradein_group = QGroupBox("Trade-ins")
+        # tradein_layout = QVBoxLayout()
+
+        # self.tradein_table = QTableWidget(0, 3)  # rows, columns
+        # self.tradein_table.setHorizontalHeaderLabels(["Model", "Serial #", "Value"])
+        # self.tradein_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        # self.tradein_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        # self.tradein_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+
+        # tradein_layout.addWidget(self.tradein_table)
+        # tradein_group.setLayout(tradein_layout)
+        # main_layout.addWidget(tradein_group)
+
+        # # Notes section
+        # notes_group = QGroupBox("Notes")
+        # notes_layout = QVBoxLayout()
+
+        # self.notes_text = QTextEdit()
+        # self.notes_text.setReadOnly(True)
+        # self.notes_text.setMinimumHeight(80)
+
+        # notes_layout.addWidget(self.notes_text)
+        # notes_group.setLayout(notes_layout)
+        # main_layout.addWidget(notes_group)
+
+        # # Buttons section
+        # buttons_layout = QHBoxLayout()
+
+        # self.fetch_quote_btn = QPushButton("Fetch Quote Details")
+        # self.fetch_quote_btn.setToolTip("Fetch the details for the current quote")
+        # self.fetch_quote_btn.clicked.connect(self._fetch_quote_details)
+
+        # # New buttons for PDF viewing
+        # self.view_proposal_pdf_btn = QPushButton("View Proposal PDF")
+        # self.view_proposal_pdf_btn.setToolTip("Fetch and view the proposal PDF for the current quote")
+        # self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked) # Wrapper for async
+        # self.view_proposal_pdf_btn.setEnabled(False) # Enable when quote_id is available
+
+        # self.view_po_pdf_btn = QPushButton("View PO PDF")
+        # self.view_po_pdf_btn.setToolTip("Fetch and view the PO PDF for the current quote")
+        # self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked) # Wrapper for async
+        # self.view_po_pdf_btn.setEnabled(False) # Enable when quote_id is available
+
+        # self.print_invoice_btn = QPushButton("Print Invoice")
+        # self.print_invoice_btn.setToolTip("Print the current invoice")
+        # self.print_invoice_btn.clicked.connect(self._print_invoice)
+        # self.print_invoice_btn.setEnabled(False)  # Disabled until data is loaded
+
+        # self.save_pdf_btn = QPushButton("Save as PDF")
+        # self.save_pdf_btn.setToolTip("Save the current invoice as a PDF file")
+        # self.save_pdf_btn.clicked.connect(self._save_as_pdf)
+        # self.save_pdf_btn.setEnabled(False)  # Disabled until data is loaded
+
+        # buttons_layout.addWidget(self.fetch_quote_btn)
+        # buttons_layout.addWidget(self.view_proposal_pdf_btn) # Added new button
+        # buttons_layout.addWidget(self.view_po_pdf_btn) # Added new button
+        # buttons_layout.addStretch(1)
+        # buttons_layout.addWidget(self.print_invoice_btn)
+        # buttons_layout.addWidget(self.save_pdf_btn)
+
+        # main_layout.addLayout(buttons_layout)
+
+        title_label = QLabel("Simplified Original Invoice View - Testing")
+        # Ensure QFont is imported: from PyQt6.QtGui import QFont
+        font = QFont("Arial", 16, QFont.Weight.Bold)
+        title_label.setFont(font)
         main_layout.addWidget(title_label)
-        
-        # Quote info section
-        quote_info_group = QGroupBox("Quote Information")
-        quote_info_layout = QFormLayout()
-        
-        self.quote_id_field = QLineEdit()
-        self.quote_id_field.setReadOnly(True)
-        
-        self.customer_name_field = QLineEdit()
-        self.customer_name_field.setReadOnly(True)
-        
-        self.salesperson_field = QLineEdit()
-        self.salesperson_field.setReadOnly(True)
-        
-        self.creation_date_field = QLineEdit()
-        self.creation_date_field.setReadOnly(True)
-        
-        quote_info_layout.addRow("Quote ID:", self.quote_id_field)
-        quote_info_layout.addRow("Customer:", self.customer_name_field)
-        quote_info_layout.addRow("Salesperson:", self.salesperson_field)
-        quote_info_layout.addRow("Created:", self.creation_date_field)
-        
-        quote_info_group.setLayout(quote_info_layout)
-        main_layout.addWidget(quote_info_group)
-        
-        # Equipment section
-        equipment_group = QGroupBox("Equipment")
-        equipment_layout = QVBoxLayout()
-        
-        self.equipment_table = QTableWidget(0, 4)  # rows, columns
-        self.equipment_table.setHorizontalHeaderLabels(["Model", "Serial #", "Order #", "Price"])
-        self.equipment_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.equipment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.equipment_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.equipment_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        
-        equipment_layout.addWidget(self.equipment_table)
-        equipment_group.setLayout(equipment_layout)
-        main_layout.addWidget(equipment_group)
-        
-        # Trade-ins section
-        tradein_group = QGroupBox("Trade-ins")
-        tradein_layout = QVBoxLayout()
-        
-        self.tradein_table = QTableWidget(0, 3)  # rows, columns
-        self.tradein_table.setHorizontalHeaderLabels(["Model", "Serial #", "Value"])
-        self.tradein_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.tradein_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.tradein_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        
-        tradein_layout.addWidget(self.tradein_table)
-        tradein_group.setLayout(tradein_layout)
-        main_layout.addWidget(tradein_group)
-        
-        # Notes section
-        notes_group = QGroupBox("Notes")
-        notes_layout = QVBoxLayout()
-        
-        self.notes_text = QTextEdit()
-        self.notes_text.setReadOnly(True)
-        self.notes_text.setMinimumHeight(80)
-        
-        notes_layout.addWidget(self.notes_text)
-        notes_group.setLayout(notes_layout)
-        main_layout.addWidget(notes_group)
-        
-        # Buttons section
-        buttons_layout = QHBoxLayout()
-        
-        self.fetch_quote_btn = QPushButton("Fetch Quote Details")
-        self.fetch_quote_btn.setToolTip("Fetch the details for the current quote")
-        self.fetch_quote_btn.clicked.connect(self._fetch_quote_details)
-        
-        # New buttons for PDF viewing
-        self.view_proposal_pdf_btn = QPushButton("View Proposal PDF")
-        self.view_proposal_pdf_btn.setToolTip("Fetch and view the proposal PDF for the current quote")
-        self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked) # Wrapper for async
-        self.view_proposal_pdf_btn.setEnabled(False) # Enable when quote_id is available
 
-        self.view_po_pdf_btn = QPushButton("View PO PDF")
-        self.view_po_pdf_btn.setToolTip("Fetch and view the PO PDF for the current quote")
-        self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked) # Wrapper for async
-        self.view_po_pdf_btn.setEnabled(False) # Enable when quote_id is available
-
-        self.print_invoice_btn = QPushButton("Print Invoice")
-        self.print_invoice_btn.setToolTip("Print the current invoice")
-        self.print_invoice_btn.clicked.connect(self._print_invoice)
-        self.print_invoice_btn.setEnabled(False)  # Disabled until data is loaded
-        
-        self.save_pdf_btn = QPushButton("Save as PDF")
-        self.save_pdf_btn.setToolTip("Save the current invoice as a PDF file")
-        self.save_pdf_btn.clicked.connect(self._save_as_pdf)
-        self.save_pdf_btn.setEnabled(False)  # Disabled until data is loaded
-        
-        buttons_layout.addWidget(self.fetch_quote_btn)
-        buttons_layout.addWidget(self.view_proposal_pdf_btn) # Added new button
-        buttons_layout.addWidget(self.view_po_pdf_btn) # Added new button
-        buttons_layout.addStretch(1)
-        buttons_layout.addWidget(self.print_invoice_btn)
-        buttons_layout.addWidget(self.save_pdf_btn)
-        
-        main_layout.addLayout(buttons_layout)
+        self.test_status_label = QLabel("Status: Simplified UI Loaded")
+        main_layout.addWidget(self.test_status_label)
+        main_layout.addStretch()
         
     
     def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
@@ -915,140 +925,3 @@ class InvoiceModuleView(BaseViewModule):
             self.logger.error(f"RuntimeError during close_services task creation (event loop may be stopped): {e}")
             # Fallback or synchronous close if possible and necessary, though services are async
         super().closeEvent(event) # Call base class closeEvent
-
-
-# (Keep existing imports and InvoiceModuleView class above this)
-
-class MinimalInvoiceView(QWidget):
-    def __init__(self,
-                 config: Optional[BRIDealConfig] = None,
-                 auth_manager: Optional[JDAuthManager] = None, # Kept for signature consistency if main.py passes it
-                 jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
-                 logger_instance: Optional[logging.Logger] = None,
-                 main_window: Optional[QWidget] = None, # Kept for signature consistency
-                 parent: Optional[QWidget] = None):
-        super().__init__(parent)
-
-        self.config = config
-        self.auth_manager = auth_manager # Not strictly used in this minimal version's fetch
-        self.jd_quote_service = jd_quote_integration_service # This is the one we'll use
-        self.logger = logger_instance or logging.getLogger("MinimalInvoiceViewLogger")
-        self.main_window = main_window
-
-        self.current_quote_id = None
-        self.current_dealer_account_no = None
-        self.quote_details = None
-        self.thread_pool = QThreadPool.globalInstance()
-
-        # Basic UI
-        layout = QVBoxLayout(self) # Sets layout for this QWidget
-
-        self.title_label = QLabel("Minimal Invoice View")
-        font = QFont("Arial", 16, QFont.Weight.Bold)
-        self.title_label.setFont(font)
-
-        self.quote_id_label = QLabel("Quote ID: [Not Loaded]")
-        self.customer_name_label = QLabel("Customer: [Not Loaded]")
-        self.status_label = QLabel("Status: Initialized")
-
-        layout.addWidget(self.title_label)
-        layout.addWidget(self.quote_id_label)
-        layout.addWidget(self.customer_name_label)
-        layout.addWidget(self.status_label)
-        layout.addStretch()
-
-        self.logger.info("MinimalInvoiceView initialized.")
-
-    def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
-        self.logger.info(f"MinimalInvoiceView: Initiating invoice from quote ID: {quote_id}")
-        self.current_quote_id = quote_id
-        self.current_dealer_account_no = dealer_account_no
-
-        self.quote_id_label.setText(f"Quote ID: {self.current_quote_id}")
-        self.customer_name_label.setText("Customer: [Loading...]")
-        self.status_label.setText(f"Status: Loading quote {self.current_quote_id}...")
-
-        if self.current_quote_id and self.current_dealer_account_no:
-            self._fetch_quote_details()
-
-    def _fetch_quote_details(self):
-        self.logger.debug(f"MinimalInvoiceView: Fetching details for {self.current_quote_id}")
-        if not self.jd_quote_service:
-            self.logger.error("MinimalInvoiceView: JDQuoteIntegrationService (jd_quote_service) is not available.")
-            self.status_label.setText("Status: Error - JD Quote Service not configured.")
-            QMessageBox.critical(self, "Service Error", "JD Quote Service not available.")
-            return
-
-        if not self.jd_quote_service.is_operational:
-            self.logger.warning("MinimalInvoiceView: JDQuoteIntegrationService is not operational.")
-            self.status_label.setText("Status: Warning - JD Quote Service not operational.")
-            # QMessageBox.warning(self, "Service Warning", "JD Quote Service is not currently operational.")
-            # Allow to proceed, API call will likely fail and be handled
-
-        self.status_label.setText(f"Status: Fetching quote data for {self.current_quote_id}...")
-
-        def get_quote_details_wrapper(*args, **kwargs):
-            return self.jd_quote_service.get_quote_details_via_api(
-                self.current_quote_id, self.current_dealer_account_no
-            )
-
-        worker = Worker(get_quote_details_wrapper)
-        worker.signals.result.connect(self._handle_minimal_quote_details_result)
-        worker.signals.error.connect(self._handle_minimal_quote_details_error)
-        self.thread_pool.start(worker)
-
-    def _handle_minimal_quote_details_result(self, response_data: dict):
-        self.logger.debug(f"MinimalInvoiceView: Received quote details result: {response_data.get('type', 'Unknown type')}")
-        if response_data.get("type") == "SUCCESS" and response_data.get("body"):
-            self.quote_details = response_data.get("body")
-            self.logger.info(f"MinimalInvoiceView: Successfully retrieved quote details for {self.current_quote_id}")
-            self._update_minimal_ui_with_quote_details()
-            self.status_label.setText(f"Status: Quote {self.current_quote_id} loaded.")
-        else:
-            error_msg = response_data.get("body", {}).get("errorMessage", "Unknown API error or empty body.")
-            self.logger.error(f"MinimalInvoiceView: Quote details retrieval failed or empty: {error_msg}")
-            self.status_label.setText(f"Status: Failed to load quote - {error_msg}")
-            self.customer_name_label.setText("Customer: [Error]")
-            QMessageBox.warning(self, "API Error", f"Could not retrieve quote details: {error_msg}")
-
-
-    def _handle_minimal_quote_details_error(self, error_info: tuple):
-        try:
-            exc_type, exc_value, exc_traceback = error_info
-            error_msg = str(exc_value)
-        except (ValueError, TypeError):
-            error_msg = str(error_info) # Fallback
-
-        self.logger.error(f"MinimalInvoiceView: Error fetching quote details: {error_msg}", exc_info=True)
-        self.status_label.setText(f"Status: Error - {error_msg}")
-        self.customer_name_label.setText("Customer: [Error]")
-        QMessageBox.critical(self, "Fetch Error", f"An error occurred while fetching quote details: {error_msg}")
-
-    def _update_minimal_ui_with_quote_details(self):
-        if not self.quote_details:
-            self.logger.warning("MinimalInvoiceView: _update_minimal_ui_with_quote_details called with no details.")
-            return
-
-        customer_data = self.quote_details.get("customerData", {})
-        customer_name = f"{customer_data.get('customerFirstName', '')} {customer_data.get('customerLastName', '')}".strip()
-
-        self.customer_name_label.setText(f"Customer: {customer_name or 'N/A'}")
-        # Quote ID label is already set in initiate_invoice_from_quote
-
-        self.logger.info(f"MinimalInvoiceView: UI updated for quote {self.current_quote_id}, Customer: {customer_name or 'N/A'}")
-
-    # Required by MainWindow module loading if it expects BaseViewModule features
-    def get_icon_name(self):
-        return "invoice_icon.png" # Or None, or a generic one
-
-    def get_title(self):
-        return "Minimal Invoice"
-
-    def load_module_data(self): # Add this method
-        self.logger.debug(f"MinimalInvoiceView: load_module_data called for {self.current_quote_id}")
-        # If there's a current quote, try to fetch/refresh its details
-        # This might be triggered when the tab becomes active.
-        # For now, we only load data via initiate_invoice_from_quote.
-        # If self.current_quote_id:
-        #    self._fetch_quote_details()
-        pass
