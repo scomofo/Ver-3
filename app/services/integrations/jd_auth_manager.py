@@ -458,10 +458,6 @@ class JDAuthManager:
                 raise AuthenticationRequiredError("User authentication required")
         return self.access_token
 
-class AuthenticationRequiredError(Exception):
-    """Raised when user authentication is required"""
-    pass
-
     def is_token_expired(self) -> bool:
         """Checks if the current access token is expired or close to expiring."""
         if not self.token_expires_at:
@@ -477,3 +473,7 @@ class AuthenticationRequiredError(Exception):
         if self.token_handler:
             self.token_handler.delete_token("jd_api")
         logger.info("JDAuthManager: Token information cleared.")
+
+class AuthenticationRequiredError(Exception):
+    """Raised when user authentication is required"""
+    pass

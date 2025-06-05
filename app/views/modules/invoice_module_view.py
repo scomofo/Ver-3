@@ -245,8 +245,14 @@ class InvoiceModuleView(BaseViewModule):
             self.current_quote_id = quote_id
             self.current_dealer_account_no = dealer_account
             self.quote_id_field.setText(quote_id)
-            self.view_proposal_pdf_btn.setEnabled(True) # Enable new buttons
+
+        if self.current_quote_id: # This check might already exist or be slightly different
+            self.view_proposal_pdf_btn.setEnabled(True)
             self.view_po_pdf_btn.setEnabled(True)
+        else: # No quote ID available even after prompt
+            self.view_proposal_pdf_btn.setEnabled(False)
+            self.view_po_pdf_btn.setEnabled(False)
+            return # Cannot proceed without a quote ID
         
         # Check if JD quote service is available (old service)
         if not self.jd_quote_service or not self.jd_quote_service.is_operational:
@@ -324,6 +330,18 @@ class InvoiceModuleView(BaseViewModule):
         else:
             QMessageBox.critical(self, "System Error", 
                               f"An error occurred while trying to fetch quote details: {error_msg}")
+
+        self.customer_name_field.setText("Error loading quote data")
+        self.salesperson_field.setText("N/A")
+        self.creation_date_field.setText("N/A")
+        self.equipment_table.setRowCount(0)
+        self.tradein_table.setRowCount(0)
+        self.notes_text.setText(f"Failed to load quote details.\nError: {error_msg}") # error_msg should be available in this method's scope
+        self.print_invoice_btn.setEnabled(False)
+        self.save_pdf_btn.setEnabled(False)
+        # Keep PDF buttons enabled if a quote_id exists, as user might want to try fetching PDF separately
+        self.view_proposal_pdf_btn.setEnabled(bool(self.current_quote_id))
+        self.view_po_pdf_btn.setEnabled(bool(self.current_quote_id))
     
     def _update_ui_with_quote_details(self):
         """Update the UI with the loaded quote details."""

@@ -602,6 +602,7 @@ class MainWindow(QMainWindow):
                config=self.config,
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,
+               auth_manager=self.jd_auth_manager_service,  # Added this line
                logger_instance=logging.getLogger("JDExternalQuoteViewLogger")
            )
        except Exception as e:
@@ -615,6 +616,7 @@ class MainWindow(QMainWindow):
                config=self.config,
                main_window=self,
                jd_quote_integration_service=self.jd_quote_integration_service,
+               auth_manager=self.jd_auth_manager_service,  # Added this line
                logger_instance=logging.getLogger("InvoiceModuleViewLogger")
            )
        except Exception as e:

@@ -26,7 +26,7 @@ class JDPODataService:
         """
         Asynchronously initializes the service by creating and setting up the API client.
         """
-        if not self.auth_manager.is_configured():
+        if not self.auth_manager.is_operational:
             logger.warning("JDPODataService: Auth Manager is not configured. Service will not be operational.")
             self._is_operational = False
             return
