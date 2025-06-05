@@ -216,6 +216,22 @@ class InvoiceModuleView(BaseViewModule):
             self.view_proposal_pdf_btn.setEnabled(True)
             self.view_po_pdf_btn.setEnabled(True)
 
+    def setLayout(self, layout):
+        # Get the caller's frame information
+        caller_frame = sys._getframe(1) # Get the frame of the caller
+        caller_name = caller_frame.f_code.co_name
+        caller_filename = caller_frame.f_code.co_filename
+
+        self.logger.debug(f"InvoiceModuleView.setLayout CALLED by: {caller_name} in {caller_filename} (instance: {id(self)}) with layout: {layout}")
+
+        current_layout = self.layout()
+        if current_layout is not None and current_layout != layout:
+            self.logger.warning(f"InvoiceModuleView (instance {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
+        elif current_layout is not None and current_layout == layout:
+            self.logger.info(f"InvoiceModuleView.setLayout called with the SAME layout object (instance: {id(self)}). Caller: {caller_name} in {caller_filename}")
+
+        super().setLayout(layout) # Call the original QWidget.setLayout
+
     async def _initialize_services(self):
         # This method would be called by the application's event loop or a dedicated task runner
         self.logger.info("Initializing JD services...")
