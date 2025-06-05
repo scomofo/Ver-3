@@ -58,7 +58,7 @@ class BaseViewModule(QWidget):
         self.logger.info(f"{self.module_name} initialized.")
 
     def setLayout(self, layout):
-        # Determine a module name for logging, fallback if not available
+        # Determine a module name for logging
         module_display_name = "UnknownModule"
         if hasattr(self, 'module_name') and self.module_name:
             module_display_name = self.module_name
@@ -71,7 +71,7 @@ class BaseViewModule(QWidget):
             caller_frame = sys._getframe(1) # Get the frame of the caller
             caller_name = caller_frame.f_code.co_name
             caller_filename = caller_frame.f_code.co_filename
-        except Exception: # Fallback in case _getframe fails
+        except Exception:
             caller_name = "UnknownCaller"
             caller_filename = "UnknownFile"
 
@@ -83,7 +83,18 @@ class BaseViewModule(QWidget):
         elif current_layout is not None and current_layout == layout:
             logger_to_use.info(f"{module_display_name} (instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
 
-        super().setLayout(layout) # Call QWidget.setLayout (or the next in MRO)
+        # Specific super() call for each class
+        if type(self).__name__ == "BaseViewModule":
+            super(BaseViewModule, self).setLayout(layout)
+        elif type(self).__name__ == "CsvEditorBase":
+            super(CsvEditorBase, self).setLayout(layout)
+        elif type(self).__name__ == "InvoiceModuleView":
+            super(InvoiceModuleView, self).setLayout(layout)
+        elif type(self).__name__ == "JDExternalQuoteView":
+            super(JDExternalQuoteView, self).setLayout(layout)
+        else:
+            # Fallback, though should not be reached for these specific classes
+            super().setLayout(layout)
 
     # def _init_base_ui(self):
     #     """
