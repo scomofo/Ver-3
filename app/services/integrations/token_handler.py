@@ -130,7 +130,7 @@ class TokenHandler:
                 self.logger.error("CacheHandler not available for save_token.")
                 return
             cache_key = f"{self.DEFAULT_TOKEN_CACHE_KEY_PREFIX}{token_name}"
-            self.cache_handler.set(cache_key, token_data, subfolder="tokens", duration_seconds=duration_seconds)
+            self.cache_handler.set(cache_key, token_data, subfolder="tokens")
         else:
             # Direct file save
             if not self.token_file_dir:

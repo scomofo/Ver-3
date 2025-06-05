@@ -6,6 +6,7 @@ import urllib.parse
 import json
 import os
 from typing import Optional, Dict, Any, List
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -398,7 +399,7 @@ class JDAuthManager:
             logger.error(f"JDAuthManager: Error fetching token with auth code: {str(e)}", exc_info=True)
             return None
 
-    def refresh_access_token(self) -> Optional[str]:
+    async def refresh_access_token(self) -> Optional[str]:
         """
         Refreshes the access token using the refresh token.
 
@@ -412,8 +413,6 @@ class JDAuthManager:
         logger.info("JDAuthManager: Attempting to refresh access token...")
         
         try:
-            import requests
-            
             # Prepare the refresh request
             refresh_data = {
                 'grant_type': 'refresh_token',
@@ -430,7 +429,8 @@ class JDAuthManager:
                 refresh_data['dealer_id'] = self.dealer_id
             
             # Make the refresh request
-            response = requests.post(self.token_url, data=refresh_data, auth=auth)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self.token_url, data=refresh_data, auth=auth)
             response.raise_for_status()
             
             # Parse the token response
@@ -458,10 +458,6 @@ class JDAuthManager:
                 raise AuthenticationRequiredError("User authentication required")
         return self.access_token
 
-class AuthenticationRequiredError(Exception):
-    """Raised when user authentication is required"""
-    pass
-
     def is_token_expired(self) -> bool:
         """Checks if the current access token is expired or close to expiring."""
         if not self.token_expires_at:
@@ -477,3 +473,7 @@ class AuthenticationRequiredError(Exception):
         if self.token_handler:
             self.token_handler.delete_token("jd_api")
         logger.info("JDAuthManager: Token information cleared.")
+
+class AuthenticationRequiredError(Exception):
+    """Raised when user authentication is required"""
+    pass
