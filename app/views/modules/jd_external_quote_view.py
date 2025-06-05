@@ -175,50 +175,63 @@ class JDExternalQuoteView(BaseViewModule):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
 
-        title_label = QLabel("John Deere Quoting Tool")
-        title_font = QFont("Arial", 16, QFont.Weight.Bold)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
+        # title_label = QLabel("John Deere Quoting Tool")
+        # title_font = QFont("Arial", 16, QFont.Weight.Bold)
+        # title_label.setFont(title_font)
+        # title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
+        # main_layout.addWidget(title_label)
+
+        # description_label = QLabel(
+        #     "Use this section to launch the external John Deere quoting application. "
+        #     "Ensure any relevant deal information is prepared or saved before launching. "
+        #     "The application will attempt to pass the current deal context if available."
+        # )
+        # description_label.setWordWrap(True)
+        # main_layout.addWidget(description_label)
+
+        # launch_group = QGroupBox("Launch External Quoting Tool")
+        # launch_layout = QVBoxLayout()
+
+        # self.launch_button = QPushButton("Launch JD Quote Application")
+        # self.launch_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        # self.launch_button.setStyleSheet("background-color: #0078d7; color: white; padding: 8px;")
+        # self.launch_button.clicked.connect(self._launch_external_quote_app)
+        # launch_layout.addWidget(self.launch_button)
+
+        # # Placeholder for new button to fetch PDF using new service
+        # self.fetch_ext_quote_pdf_button = QPushButton("Fetch Quote PDF (External)")
+        # self.fetch_ext_quote_pdf_button.setFont(QFont("Arial", 10))
+        # self.fetch_ext_quote_pdf_button.setToolTip("Fetch a PDF for a quote ID obtained from the external tool.")
+        # self.fetch_ext_quote_pdf_button.clicked.connect(self._handle_fetch_external_quote_pdf_clicked)
+        # self.fetch_ext_quote_pdf_button.setEnabled(False) # Enable after external tool provides a quote ID
+        # launch_layout.addWidget(self.fetch_ext_quote_pdf_button)
+
+        # launch_group.setLayout(launch_layout)
+        # main_layout.addWidget(launch_group)
+
+        # output_group = QGroupBox("Process Output / Results")
+        # output_layout = QVBoxLayout()
+        # self.output_text_edit = QTextEdit()
+        # self.output_text_edit.setReadOnly(True)
+        # self.output_text_edit.setMinimumHeight(100)
+        # output_layout.addWidget(self.output_text_edit)
+        # output_group.setLayout(output_layout)
+        # main_layout.addWidget(output_group)
+
+        # main_layout.addStretch(1)
+
+        # Ensure QFont and QLabel are imported (they should be already)
+        # from PyQt6.QtGui import QFont
+        # from PyQt6.QtWidgets import QLabel
+
+        title_label = QLabel("Simplified JD External Quote View - Testing")
+        font = QFont("Arial", 16, QFont.Weight.Bold)
+        title_label.setFont(font)
         main_layout.addWidget(title_label)
 
-        description_label = QLabel(
-            "Use this section to launch the external John Deere quoting application. "
-            "Ensure any relevant deal information is prepared or saved before launching. "
-            "The application will attempt to pass the current deal context if available."
-        )
-        description_label.setWordWrap(True)
-        main_layout.addWidget(description_label)
-
-        launch_group = QGroupBox("Launch External Quoting Tool")
-        launch_layout = QVBoxLayout()
-
-        self.launch_button = QPushButton("Launch JD Quote Application")
-        self.launch_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        self.launch_button.setStyleSheet("background-color: #0078d7; color: white; padding: 8px;")
-        self.launch_button.clicked.connect(self._launch_external_quote_app)
-        launch_layout.addWidget(self.launch_button)
-
-        # Placeholder for new button to fetch PDF using new service
-        self.fetch_ext_quote_pdf_button = QPushButton("Fetch Quote PDF (External)")
-        self.fetch_ext_quote_pdf_button.setFont(QFont("Arial", 10))
-        self.fetch_ext_quote_pdf_button.setToolTip("Fetch a PDF for a quote ID obtained from the external tool.")
-        self.fetch_ext_quote_pdf_button.clicked.connect(self._handle_fetch_external_quote_pdf_clicked)
-        self.fetch_ext_quote_pdf_button.setEnabled(False) # Enable after external tool provides a quote ID
-        launch_layout.addWidget(self.fetch_ext_quote_pdf_button)
-
-        launch_group.setLayout(launch_layout)
-        main_layout.addWidget(launch_group)
-
-        output_group = QGroupBox("Process Output / Results")
-        output_layout = QVBoxLayout()
-        self.output_text_edit = QTextEdit()
-        self.output_text_edit.setReadOnly(True)
-        self.output_text_edit.setMinimumHeight(100)
-        output_layout.addWidget(self.output_text_edit)
-        output_group.setLayout(output_layout)
-        main_layout.addWidget(output_group)
-
-        main_layout.addStretch(1)
+        self.test_status_label_jd = QLabel("Status: Simplified JD View Loaded")
+        main_layout.addWidget(self.test_status_label_jd)
+        main_layout.addStretch()
 
     def set_deal_context(self, deal_data: Optional[Dict[str, Any]]):
         """
