@@ -299,7 +299,10 @@ class CsvEditorBase(BaseViewModule):
                 item_path_in_drive = "/".join(path_parts[2:])
                 site_identifier_for_graph = f"{hostname}:{site_path_segment}"
                 item_path_in_drive_encoded = urllib.parse.quote(item_path_in_drive)
-                graph_url = f"https://graph.microsoft.com/v1.0/sites/{site_identifier_for_graph}:/drive/root:/{item_path_in_drive_encoded}:/content"
+                graph_url = f"https://graph.microsoft.com/v1.0/sites/{site_identifier_for_graph}/drive/root:/{item_path_in_drive_encoded}:/content"
+                self.logger.debug(f"Graph API URL construction: site_identifier_for_graph='{site_identifier_for_graph}'")
+                self.logger.debug(f"Graph API URL construction: item_path_in_drive='{item_path_in_drive}'")
+                self.logger.debug(f"Graph API URL construction: item_path_in_drive_encoded='{item_path_in_drive_encoded}'")
                 self.logger.info(f"Converted SharePoint URL '{direct_sharepoint_url}' to Graph API URL: '{graph_url}'")
                 return graph_url
             else:
