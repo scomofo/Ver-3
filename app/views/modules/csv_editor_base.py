@@ -2,6 +2,7 @@
 # Enhanced CSV Editor Base Class with SharePoint Integration
 
 import logging
+import sys
 import pandas as pd
 import os
 import csv
@@ -82,6 +83,28 @@ class CsvEditorBase(BaseViewModule):
         self._set_sharepoint_url()
         self._init_ui()
         self.load_csv_data()
+
+    def setLayout(self, layout):
+        # Use self.logger if available (set in __init__), else use the module-level logger
+        logger_to_use = getattr(self, 'logger', logging.getLogger(__name__))
+
+        try:
+            caller_frame = sys._getframe(1) # Get the frame of the caller
+            caller_name = caller_frame.f_code.co_name
+            caller_filename = caller_frame.f_code.co_filename
+        except Exception: # Fallback in case _getframe fails
+            caller_name = "UnknownCaller"
+            caller_filename = "UnknownFile"
+
+        logger_to_use.debug(f"CsvEditorBase ({getattr(self, 'module_name', 'UnknownCsvEditor')} - instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
+
+        current_layout = self.layout()
+        if current_layout is not None and current_layout != layout:
+            logger_to_use.warning(f"CsvEditorBase ({getattr(self, 'module_name', 'UnknownCsvEditor')} - instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}). New: {layout}. Caller: {caller_name} in {caller_filename}")
+        elif current_layout is not None and current_layout == layout:
+            logger_to_use.info(f"CsvEditorBase ({getattr(self, 'module_name', 'UnknownCsvEditor')} - instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
+
+        super(CsvEditorBase, self).setLayout(layout) # Call BaseViewModule.setLayout (or QWidget.setLayout if BaseViewModule doesn't override it)
     
     def _set_sharepoint_url(self):
         base_url_config_key = "SHAREPOINT_APP_RESOURCES_URL"

@@ -180,6 +180,10 @@ class MainWindow(QMainWindow):
            # Create content area
            self.stacked_widget = QStackedWidget()
            main_layout.addWidget(self.stacked_widget, 1)
+
+           self.diag_test_label = QLabel("MAIN WINDOW DIAGNOSTIC LABEL - VISIBLE?")
+           self.diag_test_label.setStyleSheet("background-color: red; color: white; font-size: 18px; padding: 5px; border: 2px solid yellow;")
+           main_layout.addWidget(self.diag_test_label, 0, Qt.AlignmentFlag.AlignBottom)
            
            # Initialize status bar
            self.statusBar().showMessage("Ready")

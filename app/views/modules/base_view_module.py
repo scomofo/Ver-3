@@ -1,5 +1,6 @@
 # BRIDeal_refactored/app/views/modules/base_view_module.py
 import logging
+import sys
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel # Added imports for basic functionality
 from PyQt6.QtCore import pyqtSignal, Qt # Added Qt for alignment example
 
@@ -55,6 +56,28 @@ class BaseViewModule(QWidget):
         # self._init_base_ui() # Optional: call a common UI setup
 
         self.logger.info(f"{self.module_name} initialized.")
+
+    def setLayout(self, layout):
+        # Use self.logger if available (set in __init__), else use the module-level logger
+        logger_to_use = getattr(self, 'logger', logging.getLogger(__name__))
+
+        try:
+            caller_frame = sys._getframe(1) # Get the frame of the caller
+            caller_name = caller_frame.f_code.co_name
+            caller_filename = caller_frame.f_code.co_filename
+        except Exception: # Fallback in case _getframe fails (e.g. in some execution contexts)
+            caller_name = "UnknownCaller"
+            caller_filename = "UnknownFile"
+
+        logger_to_use.debug(f"BaseViewModule ({getattr(self, 'module_name', 'UnknownModule')} - instance: {id(self)}).setLayout CALLED by: {caller_name} in {caller_filename} with layout object: {layout}")
+
+        current_layout = self.layout()
+        if current_layout is not None and current_layout != layout:
+            logger_to_use.warning(f"BaseViewModule ({getattr(self, 'module_name', 'UnknownModule')} - instance: {id(self)}) ALREADY HAS A LAYOUT ({current_layout}) before calling super().setLayout(). New layout: {layout}. Caller: {caller_name} in {caller_filename}")
+        elif current_layout is not None and current_layout == layout:
+            logger_to_use.info(f"BaseViewModule ({getattr(self, 'module_name', 'UnknownModule')} - instance: {id(self)}).setLayout called with the SAME layout object. Caller: {caller_name} in {caller_filename}")
+
+        super(BaseViewModule, self).setLayout(layout) # Call QWidget.setLayout
 
     # def _init_base_ui(self):
     #     """
