@@ -87,7 +87,9 @@ class InvoiceModuleView(BaseViewModule):
         """Initialize the user interface."""
         print("DEBUG: InvoiceModuleView _init_ui called")
         self.logger.debug(f"InvoiceModuleView._init_ui called for instance {id(self)}")
+        print("DEBUG: In InvoiceModuleView._init_ui - BEFORE main layout command")
         main_layout = QVBoxLayout(self)
+        print(f"DEBUG: In InvoiceModuleView._init_ui - AFTER main layout command. self.layout() is {{self.layout()}}")
         main_layout.setContentsMargins(10, 10, 10, 10)
         
         # --- Simplified Title (from previous step, can be kept or removed for this test) ---
