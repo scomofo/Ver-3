@@ -218,7 +218,6 @@ class JDExternalQuoteView(BaseViewModule):
         main_layout.addWidget(output_group)
 
         main_layout.addStretch(1)
-        self.setLayout(main_layout)
 
     def set_deal_context(self, deal_data: Optional[Dict[str, Any]]):
         """
