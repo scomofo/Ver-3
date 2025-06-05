@@ -86,7 +86,7 @@ class JDExternalQuoteView(BaseViewModule):
 
     async def _initialize_jd_services(self):
         self.logger.info(f"{self.module_name}: Initializing JD services...")
-        if self.auth_manager and self.auth_manager.is_configured(): # is_operational or is_configured
+        if self.auth_manager and self.auth_manager.is_operational: # is_operational or is_configured
             try:
                 self.jd_maintain_quote_service = await create_jd_maintain_quote_service(self.config, self.auth_manager)
                 if self.jd_maintain_quote_service and self.jd_maintain_quote_service.is_operational:
@@ -218,7 +218,6 @@ class JDExternalQuoteView(BaseViewModule):
         main_layout.addWidget(output_group)
 
         main_layout.addStretch(1)
-        self.setLayout(main_layout)
 
     def set_deal_context(self, deal_data: Optional[Dict[str, Any]]):
         """
@@ -705,83 +704,6 @@ root.mainloop()
     if os.path.exists(dummy_tk_script_name): os.remove(dummy_tk_script_name)
     mock_config_instance.cleanup()
     sys.exit(exit_code)
-                f"({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) is not configured. Launch disabled."
-            )
-            self.launch_button.setToolTip(
-                f"Path to the external JD Quote application script ({CONFIG_KEY_JD_QUOTE_TKINTER_APP_PATH}) "
-                "is not configured in the application settings."
-            )
-            self.launch_button.setEnabled(False)
-            self.output_text_edit.setText(
-                 "Configuration Error: The path to the external John Deere quoting application is not set.\n"
-                 "Please configure JD_QUOTE_TKINTER_APP_SCRIPT_PATH in the .env file or application settings."
-            )
-        else:
-            self.logger.info(f"{self.module_name}: Ready to launch external JD quoting tool.")
-            self.launch_button.setEnabled(True)
-            self.launch_button.setToolTip("Launches the external John Deere quoting application.")
-            self.output_text_edit.setPlaceholderText("Output from the external application will appear here...")
-            # Clear previous status messages if placeholder is desired
-            if self.output_text_edit.toPlainText().startswith("Configuration Error") or self.output_text_edit.toPlainText().startswith("John Deere API integration is not configured"):
-                self.output_text_edit.clear()
-
-
-    def _init_ui(self):
-        """Initialize the user interface components."""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(15)
-
-        title_label = QLabel("John Deere Quoting Tool")
-        title_font = QFont("Arial", 16, QFont.Weight.Bold)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
-        main_layout.addWidget(title_label)
-
-        description_label = QLabel(
-            "Use this section to launch the external John Deere quoting application. "
-            "Ensure any relevant deal information is prepared or saved before launching. "
-            "The application will attempt to pass the current deal context if available."
-        )
-        description_label.setWordWrap(True)
-        main_layout.addWidget(description_label)
-
-        launch_group = QGroupBox("Launch External Quoting Tool")
-        launch_layout = QVBoxLayout()
-
-        self.launch_button = QPushButton("Launch JD Quote Application")
-        self.launch_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        self.launch_button.setStyleSheet("background-color: #0078d7; color: white; padding: 8px;")
-        self.launch_button.clicked.connect(self._launch_external_quote_app)
-        launch_layout.addWidget(self.launch_button)
-
-        launch_group.setLayout(launch_layout)
-        main_layout.addWidget(launch_group)
-
-        output_group = QGroupBox("Process Output / Results")
-        output_layout = QVBoxLayout()
-        self.output_text_edit = QTextEdit()
-        self.output_text_edit.setReadOnly(True)
-        self.output_text_edit.setMinimumHeight(100)
-        output_layout.addWidget(self.output_text_edit)
-        output_group.setLayout(output_layout)
-        main_layout.addWidget(output_group)
-
-        main_layout.addStretch(1)
-        self.setLayout(main_layout)
-    
-    def set_deal_context(self, deal_data: Optional[Dict[str, Any]]):
-        """
-        Sets the current deal data that might be passed to the external app.
-        """
-        self.current_deal_context = deal_data
-        if deal_data:
-            self.logger.info(f"Deal context set for external quote app: {deal_data.get('deal_id', 'N/A')}")
-            self.show_notification("Deal context updated. Ready to launch external quote tool if configured.", "info")
-            self.output_text_edit.append(f"Deal context for '{deal_data.get('deal_name', deal_data.get('deal_id', 'current deal'))}' loaded and ready to be passed.")
-        else:
-            self.logger.info("Deal context cleared.")
-            self.output_text_edit.append("Deal context cleared.")
 
 
     def _prepare_input_data_file(self) -> Optional[str]:
