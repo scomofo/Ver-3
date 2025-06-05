@@ -1,31 +1,21 @@
 #!/usr/bin/env python3
 """
-John Deere API Endpoint Test Script
-This script tests access to various John Deere API endpoints using a provided access token.
-It attempts to call different endpoints from Quote Data, PO Data, Maintain Quotes, and Customer Linkage APIs.
+Revised John Deere API Endpoint Test Script
+Filename: jd_api_test_revised.py
 """
 
 import argparse
 import json
 import os
 import requests
+import base64
 from datetime import datetime, timedelta
 
-# Base URLs
+# Base URLs - some adjustments based on API docs
 QUOTE_DATA_BASE_URL = "https://jdquote2-api-sandbox.deere.com/om/cert/quotedata"
 PO_DATA_BASE_URL = "https://jdquote2-api-sandbox.deere.com/om/cert/podata"
 MAINTAIN_QUOTE_BASE_URL = "https://jdquote2-api-sandbox.deere.com/om/cert/maintainquote"
-CUSTOMER_LINKAGE_BASE_URL = "https://sandboxapi.deere.com/platform/api"
-
-def load_token_from_file(token_file):
-    """Load the token from a file."""
-    try:
-        with open(token_file, 'r') as f:
-            token_data = json.load(f)
-            return token_data.get("access_token")
-    except Exception as e:
-        print(f"Error loading token: {e}")
-        return None
+CUSTOMER_LINKAGE_BASE_URL = "https://sandboxapi.deere.com/platform"
 
 def make_api_request(url, method="GET", headers=None, data=None, params=None):
     """Make an API request and return the response."""
@@ -33,22 +23,30 @@ def make_api_request(url, method="GET", headers=None, data=None, params=None):
         headers = {}
     
     try:
-        response = requests.request(
-            method=method,
-            url=url,
-            headers=headers,
-            json=data,
-            params=params,
-            timeout=30
-        )
-        
-        # Print request details
         print(f"\n{'-'*80}")
         print(f"Request: {method} {url}")
         if params:
             print(f"Params: {json.dumps(params, indent=2)}")
         if data:
-            print(f"Data: {json.dumps(data, indent=2)}")
+            if isinstance(data, dict):
+                print(f"Data: {json.dumps(data, indent=2)}")
+            else:
+                print(f"Data: {data}")
+        
+        # Print all headers except Auth (for security)
+        printable_headers = {k: v for k, v in headers.items() if k.lower() != 'authorization'}
+        print(f"Headers: {json.dumps(printable_headers, indent=2)}")
+        print(f"Authorization: Bearer [token hidden]")
+        
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            json=data if isinstance(data, dict) else None,
+            data=data if not isinstance(data, dict) else None,
+            params=params,
+            timeout=30
+        )
         
         # Print response details
         print(f"Response Status: {response.status_code}")
@@ -68,139 +66,117 @@ def make_api_request(url, method="GET", headers=None, data=None, params=None):
         print(f"Request failed: {e}")
         return None, str(e)
 
-def test_quote_data_api(token, dealer_id="X731804"):
-    """Test various endpoints of the Quote Data API."""
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    
-    print("\n=== Testing Quote Data API ===")
-    
-    # Test Search Quote
-    search_data = {
-        "dealerAccountNumber": "731804",
-        "beginDate": datetime.now().strftime("%d-%b-%y"),
-        "endDate": (datetime.now() + timedelta(days=30)).strftime("%d-%b-%y")
-    }
-    
-    make_api_request(
-        url=f"{QUOTE_DATA_BASE_URL}/api/v1/quote-data",
-        method="POST",
-        headers=headers,
-        data=search_data
-    )
-    
-    # Test Get Last Modified Date (you need a valid quoteId)
-    # Commenting out as we need a valid quoteId - uncomment and add a valid ID when testing
-    # make_api_request(
-    #     url=f"{QUOTE_DATA_BASE_URL}/api/v1/quotes/22769888/last-modified-date",
-    #     headers=headers
-    # )
+def decode_jwt(token):
+    """Decode and print JWT token information (without validation)"""
+    try:
+        # Split the token
+        parts = token.split('.')
+        if len(parts) != 3:
+            print("Warning: Token does not appear to be a valid JWT (should have 3 parts)")
+            return
+        
+        # Decode the payload
+        payload_bytes = parts[1].encode()
+        # Add padding if necessary
+        payload_bytes += b'=' * (4 - (len(payload_bytes) % 4))
+        
+        # Decode the payload
+        decoded = base64.b64decode(payload_bytes)
+        payload = json.loads(decoded)
+        
+        # Extract important information
+        print("\n=== Token Info ===")
+        print(f"Issued at: {datetime.fromtimestamp(payload.get('iat', 0))}")
+        print(f"Expires at: {datetime.fromtimestamp(payload.get('exp', 0))}")
+        print(f"Scopes: {payload.get('scp', [])}")
+        print(f"Issuer: {payload.get('iss', 'N/A')}")
+        print(f"Subject: {payload.get('sub', 'N/A')}")
+        print(f"Client ID: {payload.get('cid', 'N/A')}")
+        
+        # Check if token is expired
+        if 'exp' in payload:
+            exp_time = datetime.fromtimestamp(payload['exp'])
+            now = datetime.now()
+            if exp_time < now:
+                print(f"WARNING: Token expired on {exp_time}")
+            else:
+                print(f"Token valid for {(exp_time - now).total_seconds()/60:.1f} more minutes")
+    except Exception as e:
+        print(f"Error decoding token: {e}")
 
-def test_po_data_api(token, dealer_id="X731804"):
-    """Test various endpoints of the PO Data API."""
+def test_maintain_quotes_curl_equivalent(token, dealer_id="X731804"):
+    """Test the Maintain Quotes API using a format similar to the curl example"""
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
     
-    print("\n=== Testing PO Data API ===")
+    print("\n=== Testing Maintain Quotes API (Curl Equivalent) ===")
     
-    # Test Get Blank PO PDF
-    make_api_request(
-        url=f"{PO_DATA_BASE_URL}/api/v1/dealers/{dealer_id}/blank-po-pdf",
-        headers=headers
-    )
-    
-    # Test Search Purchase Order
-    search_data = {
-        "dealerAccNumber": "731804",
-        "startModifiedDate": datetime.now().strftime("%m-%d-%Y"),
-        "endModifiedDate": (datetime.now() + timedelta(days=30)).strftime("%m-%d-%Y")
-    }
-    
-    make_api_request(
-        url=f"{PO_DATA_BASE_URL}/api/v1/purchase-orders",
-        method="POST",
-        headers=headers,
-        data=search_data
-    )
-
-def test_maintain_quotes_api(token, dealer_id="X731804"):
-    """Test various endpoints of the Maintain Quotes API."""
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    
-    print("\n=== Testing Maintain Quotes API ===")
-    
-    # Test Get Quotes
+    # This matches the curl example from your output
     data = {
         "dealerRacfID": dealer_id, 
         "startModifiedDate": "04-01-2025", 
-        "endModifiedDate": "04-18-2025"
+        "endModifiedDate": "04-15-2025"
     }
     
+    # Try with the exact URL from the curl example
+    url = f"{MAINTAIN_QUOTE_BASE_URL}/api/v1/dealers/{dealer_id}/maintain-quotes"
+    
     make_api_request(
-        url=f"{MAINTAIN_QUOTE_BASE_URL}/api/v1/dealers/{dealer_id}/maintain-quotes",
+        url=url,
         method="POST",
         headers=headers,
         data=data
     )
     
-    # Test Get Master Quotes
-    make_api_request(
-        url=f"{MAINTAIN_QUOTE_BASE_URL}/api/v1/dealers/{dealer_id}/quotes",
-        method="POST",
-        headers=headers,
-        data={"dealerRacfID": dealer_id}
-    )
+    # If we get a 401, try adding a specific scope test
+    print("\n=== Note on Scopes ===")
+    print("If you received 401 errors, you might need the 'axiom' scope.")
+    print("Required scopes according to your documentation:")
+    print("- Maintain Quotes API: 'axiom' scope")
+    print("- PO Data API: 'axiom' scope")
+    print("- Quote Data API: 'axiom' scope")
+    print("- Customer Linkage API: 'axiom' scope")
+    print("- For refresh tokens: 'offline_access' scope")
+    print("\nYou may need to modify your token request to include multiple scopes.")
 
-def test_customer_linkage_api(token, dealer_id="X731804"):
-    """Test various endpoints of the Customer Linkage API."""
+def test_direct_endpoint(token, dealer_id="X731804"):
+    """Test a direct, simple endpoint"""
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        "appId": "123"  # Required header for some endpoints
+        "Accept": "application/json"
     }
     
-    print("\n=== Testing Customer Linkage API ===")
+    print("\n=== Testing Direct Endpoint ===")
     
-    # Test Retrieve Linkages
-    make_api_request(
-        url=f"{CUSTOMER_LINKAGE_BASE_URL}/retrieveLinkages",
-        headers=headers,
-        params={"dealerId": dealer_id}
-    )
+    # Try accessing one of the simpler endpoints
+    url = f"{MAINTAIN_QUOTE_BASE_URL}/api/v1/dealers/{dealer_id}/quotes"
     
-    # Test Retrieve Dealer Xref
     make_api_request(
-        url=f"{CUSTOMER_LINKAGE_BASE_URL}/retrieveDealerXref",
+        url=url,
+        method="POST",
         headers=headers,
-        params={"dealerId": dealer_id}
+        data={"dealerRacfID": dealer_id}
     )
 
 def main():
     """Main function to run the tests."""
     parser = argparse.ArgumentParser(description="Test John Deere API endpoints")
     parser.add_argument("--token", help="OAuth token to use for API calls")
-    parser.add_argument("--token-file", help="File containing the OAuth token", default="cache/jd_token.json")
     parser.add_argument("--dealer-id", help="Dealer ID to use for API calls", default="X731804")
+    parser.add_argument("--prompt-token", action="store_true", help="Prompt for token input at runtime")
     args = parser.parse_args()
     
     # Get the token
     token = args.token
-    if not token and args.token_file:
-        token = load_token_from_file(args.token_file)
+    if args.prompt_token:
+        token = input("Please enter your John Deere OAuth token: ")
     
     if not token:
-        print("Error: No token provided. Use --token or --token-file")
+        print("Error: No token provided. Use --token or --prompt-token")
         return
     
     # Print token information (first few chars only for security)
@@ -208,13 +184,14 @@ def main():
     print(f"Using token: {token_prefix}...")
     print(f"Using dealer ID: {args.dealer_id}")
     
-    # Run the tests
-    test_quote_data_api(token, args.dealer_id)
-    test_po_data_api(token, args.dealer_id)
-    test_maintain_quotes_api(token, args.dealer_id)
-    test_customer_linkage_api(token, args.dealer_id)
+    # Decode and check token
+    decode_jwt(token)
     
-    print("\n=== All tests completed ===")
+    # Run the most minimal tests to troubleshoot
+    test_maintain_quotes_curl_equivalent(token, args.dealer_id)
+    test_direct_endpoint(token, args.dealer_id)
+    
+    print("\n=== Tests completed ===")
 
 if __name__ == "__main__":
     main()
