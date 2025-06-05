@@ -193,7 +193,6 @@ class InvoiceModuleView(BaseViewModule):
         
         main_layout.addLayout(buttons_layout)
         
-        self.setLayout(main_layout)
     
     def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
         """
