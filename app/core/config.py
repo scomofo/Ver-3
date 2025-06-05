@@ -157,6 +157,14 @@ class BRIDealConfig(BaseSettings):
     # Development
     mock_apis: bool = Field(default=False, description="Use mock APIs for development")
     auto_reload: bool = Field(default=False, description="Auto-reload on code changes")
+
+    # Application Specific Settings
+    invoice_tax_rate: float = Field(
+        default=0.07,
+        ge=0.0,
+        le=1.0,
+        description="Default tax rate for invoice calculations (e.g., 0.07 for 7%)."
+    )
     
     # Validators
     if PYDANTIC_V2:

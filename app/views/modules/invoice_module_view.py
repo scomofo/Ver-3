@@ -1,6 +1,8 @@
 # app/views/modules/invoice_module_view.py
 import logging
 import os
+import sys
+import subprocess
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -22,6 +24,13 @@ from app.services.integrations.jd_quote_integration_service import JDQuoteIntegr
 from app.services.integrations.jd_auth_manager import JDAuthManager # Assuming auth_manager is passed
 from app.services.integrations.jd_quote_data_service import create_jd_quote_data_service, JDQuoteDataService
 from app.services.integrations.jd_po_data_service import create_jd_po_data_service, JDPODataService
+
+# ReportLab Imports
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
 
 
 logger = logging.getLogger(__name__)
@@ -416,7 +425,7 @@ class InvoiceModuleView(BaseViewModule):
         
         # Calculate totals
         subtotal = sum(item["price"] for item in equipment_items)
-        tax_rate = 0.07  # Example tax rate, should be configurable
+        tax_rate = self.config.invoice_tax_rate
         tax_amount = subtotal * tax_rate
         total = subtotal + tax_amount
         
@@ -649,85 +658,109 @@ class InvoiceModuleView(BaseViewModule):
     def _generate_pdf(self, filename, invoice):
         """Generate a PDF invoice using ReportLab."""
         try:
-            # This is a placeholder implementation. In a real scenario, you would use ReportLab or another PDF library.
-            # This implementation just creates a simple text file with the invoice data
             self.logger.info(f"Generating PDF for invoice #{invoice['invoice_number']} to {filename}")
-            
-            with open(filename, 'w') as f:
-                # Write invoice header
-                f.write(f"INVOICE #{invoice['invoice_number']}\n")
-                f.write(f"Date: {invoice['date']}\n")
-                f.write(f"Quote ID: {invoice['quote_id']}\n\n")
-                
-                # Customer information
-                f.write("CUSTOMER INFORMATION\n")
-                f.write(f"Name: {invoice['customer']['name']}\n")
-                f.write(f"Address: {invoice['customer']['address']}\n")
-                f.write(f"City: {invoice['customer']['city']}, State: {invoice['customer']['state']}, ZIP: {invoice['customer']['zip']}\n")
-                f.write(f"Phone: {invoice['customer']['phone']}\n")
-                f.write(f"Email: {invoice['customer']['email']}\n\n")
-                
-                # Salesperson
-                f.write(f"Salesperson: {invoice['salesperson']}\n\n")
-                
-                # Equipment items
-                f.write("EQUIPMENT\n")
-                for item in invoice['items']:
-                    f.write(f"Model: {item['model']}, Serial #: {item['serial_number']}, Order #: {item['order_number']}, Price: ${item['price']:,.2f}\n")
-                f.write("\n")
-                
-                # Trade-ins
-                if invoice['trade_ins']:
-                    f.write("TRADE-INS\n")
-                    for item in invoice['trade_ins']:
-                        f.write(f"Model: {item['model']}, Serial #: {item['serial_number']}, Value: ${item['value']:,.2f}\n")
-                    f.write("\n")
-                
-                # Totals
-                f.write("TOTALS\n")
-                f.write(f"Subtotal: ${invoice['subtotal']:,.2f}\n")
-                f.write(f"Tax Rate: {invoice['tax_rate'] * 100:.1f}%\n")
-                f.write(f"Tax Amount: ${invoice['tax_amount']:,.2f}\n")
-                f.write(f"Trade-in Total: ${invoice['trade_in_total']:,.2f}\n")
-                f.write(f"Total Due: ${invoice['amount_due']:,.2f}\n\n")
-                
-                # Notes
-                if invoice['notes']:
-                    f.write("NOTES\n")
-                    f.write(f"{invoice['notes']}\n")
-            
-            self.logger.info(f"PDF generation complete for {filename}")
-            
-            # In a real implementation, you would import reportlab and use it to create a proper PDF
-            """
-            Example with ReportLab:
-            
-            from reportlab.lib.pagesizes import letter
-            from reportlab.platypus import SimpleDocTemplate, Table, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet
-            
+
             doc = SimpleDocTemplate(filename, pagesize=letter)
             styles = getSampleStyleSheet()
-            
-            # Build the PDF content
             content = []
-            
-            # Add the invoice header
-            content.append(Paragraph(f"INVOICE #{invoice['invoice_number']}", styles['Title']))
+
+            # Invoice Header
+            content.append(Paragraph(f"INVOICE #{invoice['invoice_number']}", styles['Heading1']))
             content.append(Paragraph(f"Date: {invoice['date']}", styles['Normal']))
             content.append(Paragraph(f"Quote ID: {invoice['quote_id']}", styles['Normal']))
-            content.append(Spacer(1, 12))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Customer Information
+            content.append(Paragraph("Customer Information", styles['Heading2']))
+            content.append(Paragraph(f"Name: {invoice['customer']['name']}", styles['Normal']))
+            content.append(Paragraph(f"Address: {invoice['customer']['address']}", styles['Normal']))
+            content.append(Paragraph(f"City: {invoice['customer']['city']}, State: {invoice['customer']['state']}, ZIP: {invoice['customer']['zip']}", styles['Normal']))
+            content.append(Paragraph(f"Phone: {invoice['customer']['phone']}", styles['Normal']))
+            content.append(Paragraph(f"Email: {invoice['customer']['email']}", styles['Normal']))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Salesperson
+            content.append(Paragraph(f"Salesperson: {invoice['salesperson']}", styles['Normal']))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Equipment Table
+            content.append(Paragraph("Equipment", styles['Heading2']))
+            equip_data = [['Model', 'Serial #', 'Order #', 'Price']]
+            for item in invoice['items']:
+                equip_data.append([item['model'], item['serial_number'], item['order_number'], f"${item['price']:,.2f}"])
             
-            # Add customer info
-            # ... etc
-            
-            # Build the document
+            equip_table = Table(equip_data)
+            equip_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('ALIGN', (3,1), (3,-1), 'RIGHT'), # Price column right aligned
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                ('BACKGROUND', (0,1), (-1,-1), colors.beige),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            content.append(equip_table)
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Trade-ins Table (Conditional)
+            if invoice['trade_ins']:
+                content.append(Paragraph("Trade-ins", styles['Heading2']))
+                trade_data = [['Model', 'Serial #', 'Value']]
+                for item in invoice['trade_ins']:
+                    trade_data.append([item['model'], item['serial_number'], f"${item['value']:,.2f}"])
+
+                trade_table = Table(trade_data)
+                trade_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('ALIGN', (2,1), (2,-1), 'RIGHT'), # Value column right aligned
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey), # Different background for trade-ins
+                    ('GRID', (0,0), (-1,-1), 1, colors.black)
+                ]))
+                content.append(trade_table)
+                content.append(Spacer(1, 0.25 * inch))
+
+            # Totals Section
+            content.append(Paragraph("Totals", styles['Heading2']))
+            content.append(Paragraph(f"Subtotal: ${invoice['subtotal']:,.2f}", styles['Normal']))
+            content.append(Paragraph(f"Tax Rate: {invoice['tax_rate'] * 100:.1f}%", styles['Normal']))
+            content.append(Paragraph(f"Tax Amount: ${invoice['tax_amount']:,.2f}", styles['Normal']))
+            if invoice['trade_ins']: # Only show trade-in total if there are trade-ins
+                content.append(Paragraph(f"Trade-in Total: ${invoice['trade_in_total']:,.2f}", styles['Normal']))
+            content.append(Paragraph(f"Total Due: ${invoice['amount_due']:,.2f}", styles['Normal']))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Notes Section (Conditional)
+            if invoice['notes']:
+                content.append(Paragraph("Notes", styles['Heading2']))
+                content.append(Paragraph(invoice['notes'], styles['Normal']))
+
             doc.build(content)
-            """
-            
+            self.logger.info(f"PDF generation complete for {filename}")
+
         except Exception as e:
             self.logger.error(f"Error generating PDF: {str(e)}", exc_info=True)
             raise
+
+    def _open_file_externally(self, filepath: str):
+        try:
+            if sys.platform == "win32":
+                os.startfile(filepath)
+            elif sys.platform == "darwin": # macOS
+                subprocess.call(['open', filepath])
+            else: # Linux and other POSIX
+                subprocess.call(['xdg-open', filepath])
+            self.logger.info(f"Attempted to open file: {filepath}")
+        except FileNotFoundError:
+            self.logger.error(f"Could not open file: {filepath}. The file was not found at the path.")
+            QMessageBox.warning(self, "Open File Error", f"Could not open {os.path.basename(filepath)}.\nFile not found at the specified path.")
+        except Exception as e:
+            self.logger.error(f"Failed to open file {filepath}: {e}")
+            QMessageBox.warning(self, "Open File Error", f"Could not open {os.path.basename(filepath)}.\nAn error occurred: {e}")
     
     def _show_status_message(self, message, timeout=5000):
         """Shows a status message in the main window's status bar if available."""
@@ -773,8 +806,8 @@ class InvoiceModuleView(BaseViewModule):
                         with open(temp_pdf_path, "wb") as f:
                             f.write(pdf_data)
                         self.logger.info(f"Proposal PDF saved to {temp_pdf_path}")
-                        QMessageBox.information(self, "Proposal PDF", f"Proposal PDF downloaded to {temp_pdf_path}. Displaying is not yet implemented.")
-                        # os.startfile(temp_pdf_path) # For Windows
+                        self._open_file_externally(temp_pdf_path)
+                        QMessageBox.information(self, "Proposal PDF", f"Proposal PDF downloaded to {temp_pdf_path} and an attempt was made to open it.")
                     except Exception as e:
                         self.logger.error(f"Error saving/opening temporary PDF: {e}")
                         QMessageBox.critical(self, "PDF Error", f"Could not save or open PDF: {e}")
@@ -817,7 +850,8 @@ class InvoiceModuleView(BaseViewModule):
                         with open(temp_pdf_path, "wb") as f:
                             f.write(pdf_data)
                         self.logger.info(f"PO PDF saved to {temp_pdf_path}")
-                        QMessageBox.information(self, "PO PDF", f"PO PDF downloaded to {temp_pdf_path}. Displaying is not yet implemented.")
+                        self._open_file_externally(temp_pdf_path)
+                        QMessageBox.information(self, "PO PDF", f"PO PDF downloaded to {temp_pdf_path} and an attempt was made to open it.")
                     except Exception as e:
                         self.logger.error(f"Error saving/opening temporary PO PDF: {e}")
                         QMessageBox.critical(self, "PDF Error", f"Could not save or open PO PDF: {e}")
