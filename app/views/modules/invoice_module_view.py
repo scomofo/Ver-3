@@ -47,6 +47,7 @@ class InvoiceModuleView(BaseViewModule):
                  main_window: Optional[QWidget] = None,
                  jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
                  parent: Optional[QWidget] = None):
+        print("DEBUG: Entering InvoiceModuleView.__init__")
         super().__init__(
             module_name="Invoice Module",
             config=config, # config is already a parameter
@@ -54,6 +55,7 @@ class InvoiceModuleView(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
+        print("DEBUG: In InvoiceModuleView.__init__ - AFTER super().__init__")
         
         self.config = config # Storing config if needed by _initialize_services
         self.auth_manager = auth_manager # Storing auth_manager
@@ -68,6 +70,7 @@ class InvoiceModuleView(BaseViewModule):
         # This requires an asyncio event loop to be running and integrated with PyQt.
         # If not, this specific call might fail or not work as expected.
         # A common pattern is to use qasync or call this from an already async context.
+        print("DEBUG: In InvoiceModuleView.__init__ - BEFORE asyncio.create_task for _initialize_services")
         try:
             asyncio.create_task(self._initialize_services())
         except RuntimeError as e:
@@ -77,10 +80,12 @@ class InvoiceModuleView(BaseViewModule):
         self.current_dealer_account_no = None
         self.quote_details = None
         
+        print("DEBUG: In InvoiceModuleView.__init__ - BEFORE self._init_ui()")
         self._init_ui()
         
     def _init_ui(self):
         """Initialize the user interface."""
+        print("DEBUG: InvoiceModuleView _init_ui called")
         self.logger.debug(f"InvoiceModuleView._init_ui called for instance {id(self)}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -796,6 +801,9 @@ class InvoiceModuleView(BaseViewModule):
             self.logger.warning("View Proposal PDF clicked but no current_quote_id.")
 
     async def handle_view_proposal_pdf(self, quote_id: str):
+        if not self.parent():
+            self.logger.warning(f"{self.module_name}: View is being deleted or has no parent. Aborting proposal PDF operation.")
+            return
         self.logger.info(f"Handling view proposal PDF for quote_id: {quote_id}")
         if self.jd_quote_data_service and self.jd_quote_data_service.is_operational:
             self._show_status_message(f"Fetching proposal PDF for {quote_id}...")
@@ -811,26 +819,33 @@ class InvoiceModuleView(BaseViewModule):
                         with open(temp_pdf_path, "wb") as f:
                             f.write(pdf_data)
                         self.logger.info(f"Proposal PDF saved to {temp_pdf_path}")
+                        if not self.parent(): return
                         self._open_file_externally(temp_pdf_path)
+                        if not self.parent(): return
                         QMessageBox.information(self, "Proposal PDF", f"Proposal PDF downloaded to {temp_pdf_path} and an attempt was made to open it.")
                     except Exception as e:
                         self.logger.error(f"Error saving/opening temporary PDF: {e}")
+                        if not self.parent(): return
                         QMessageBox.critical(self, "PDF Error", f"Could not save or open PDF: {e}")
                 elif isinstance(pdf_data, dict) and pdf_data.get("url"): # If it's a JSON with a URL
                     self.logger.info(f"Proposal PDF URL received: {pdf_data.get('url')}")
+                    if not self.parent(): return
                     QMessageBox.information(self, "Proposal PDF", f"PDF available at URL: {pdf_data.get('url')}. Opening URL is not yet implemented.")
                     # QDesktopServices.openUrl(QUrl(pdf_data.get('url')))
                 else:
                     self.logger.info(f"Proposal PDF data received (JSON or other): {pdf_data}")
+                    if not self.parent(): return
                     QMessageBox.information(self, "Proposal PDF Data", f"Data received: {str(pdf_data)[:200]}...")
                 self._show_status_message(f"Proposal PDF for {quote_id} processed.")
             else:
                 error = result.error()
                 self.logger.error(f"Error fetching proposal PDF: {error.message} - {error.details}")
+                if not self.parent(): return
                 QMessageBox.critical(self, "Error", f"Error fetching proposal PDF: {error.message}")
                 self._show_status_message(f"Error fetching proposal PDF: {error.message}", timeout=10000)
         else:
             self.logger.warning("JD Quote Data Service is not available for viewing proposal PDF.")
+            if not self.parent(): return
             QMessageBox.warning(self, "Service Unavailable", "JD Quote Data Service is not available.")
             self._show_status_message("JD Quote Data Service is not available.", timeout=10000)
 
@@ -842,6 +857,9 @@ class InvoiceModuleView(BaseViewModule):
             self.logger.warning("View PO PDF clicked but no current_quote_id.")
 
     async def handle_view_po_pdf(self, quote_id: str): # Assuming PO PDF is linked to quote_id
+        if not self.parent():
+            self.logger.warning(f"{self.module_name}: View is being deleted or has no parent. Aborting PO PDF operation.")
+            return
         self.logger.info(f"Handling view PO PDF for quote_id: {quote_id}")
         if self.jd_po_data_service and self.jd_po_data_service.is_operational:
             self._show_status_message(f"Fetching PO PDF for {quote_id}...")
@@ -855,25 +873,32 @@ class InvoiceModuleView(BaseViewModule):
                         with open(temp_pdf_path, "wb") as f:
                             f.write(pdf_data)
                         self.logger.info(f"PO PDF saved to {temp_pdf_path}")
+                        if not self.parent(): return
                         self._open_file_externally(temp_pdf_path)
+                        if not self.parent(): return
                         QMessageBox.information(self, "PO PDF", f"PO PDF downloaded to {temp_pdf_path} and an attempt was made to open it.")
                     except Exception as e:
                         self.logger.error(f"Error saving/opening temporary PO PDF: {e}")
+                        if not self.parent(): return
                         QMessageBox.critical(self, "PDF Error", f"Could not save or open PO PDF: {e}")
                 elif isinstance(pdf_data, dict) and pdf_data.get("url"):
                      self.logger.info(f"PO PDF URL received: {pdf_data.get('url')}")
+                     if not self.parent(): return
                      QMessageBox.information(self, "PO PDF", f"PDF available at URL: {pdf_data.get('url')}. Opening URL is not yet implemented.")
                 else:
                     self.logger.info(f"PO PDF data received (JSON or other): {pdf_data}")
+                    if not self.parent(): return
                     QMessageBox.information(self, "PO PDF Data", f"Data received: {str(pdf_data)[:200]}...")
                 self._show_status_message(f"PO PDF for {quote_id} processed.")
             else:
                 error = result.error()
                 self.logger.error(f"Error fetching PO PDF: {error.message} - {error.details}")
+                if not self.parent(): return
                 QMessageBox.critical(self, "Error", f"Error fetching PO PDF: {error.message}")
                 self._show_status_message(f"Error fetching PO PDF: {error.message}", timeout=10000)
         else:
             self.logger.warning("JD PO Data Service is not available for viewing PO PDF.")
+            if not self.parent(): return
             QMessageBox.warning(self, "Service Unavailable", "JD PO Data Service is not available.")
             self._show_status_message("JD PO Data Service is not available.", timeout=10000)
 

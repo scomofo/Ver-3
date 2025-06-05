@@ -44,6 +44,7 @@ class CsvEditorBase(BaseViewModule):
                  logger_instance: Optional[logging.Logger] = None, 
                  main_window: Optional[QWidget] = None, 
                  parent: Optional[QWidget] = None):
+        print("DEBUG: Entering CsvEditorBase.__init__")
         super().__init__(
             module_name=module_name,
             config=config,
@@ -51,6 +52,7 @@ class CsvEditorBase(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
+        print("DEBUG: In CsvEditorBase.__init__ - AFTER super().__init__")
         
         self.csv_file_path: str = csv_file_path
         self.sharepoint_file_url: Optional[str] = None
@@ -80,8 +82,11 @@ class CsvEditorBase(BaseViewModule):
         else:
             self.logger.warning("main_window does not have sharepoint_manager_service attribute.")
 
+        print("DEBUG: In CsvEditorBase.__init__ - BEFORE self._set_sharepoint_url()")
         self._set_sharepoint_url()
+        print("DEBUG: In CsvEditorBase.__init__ - BEFORE self._init_ui()")
         self._init_ui()
+        print("DEBUG: In CsvEditorBase.__init__ - BEFORE self.load_csv_data()")
         self.load_csv_data()
     
     def _set_sharepoint_url(self):
@@ -108,6 +113,7 @@ class CsvEditorBase(BaseViewModule):
         self.logger.info(f"SharePoint URL for {filename} set to: {self.sharepoint_file_url}")
     
     def _init_ui(self):
+        print(f"DEBUG: CsvEditorBase _init_ui called for: {{self.objectName() if hasattr(self, 'objectName') and callable(self.objectName) else self.module_name}}")
         self.logger.debug(f"CsvEditorBase._init_ui called for instance {id(self)} for module {self.module_name}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)

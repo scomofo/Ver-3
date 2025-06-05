@@ -49,6 +49,7 @@ class JDExternalQuoteView(BaseViewModule):
                  main_window: Optional[QWidget] = None, # QMainWindow or relevant parent
                  jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
                  parent: Optional[QWidget] = None):
+        print("DEBUG: Entering JDExternalQuoteView.__init__")
         super().__init__(
             module_name="JDExternalQuoteTool",
             config=config,
@@ -56,6 +57,7 @@ class JDExternalQuoteView(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
+        print("DEBUG: In JDExternalQuoteView.__init__ - AFTER super().__init__")
 
         self.config = config # Stored from BaseViewModule
         self.auth_manager = auth_manager # Store auth_manager
@@ -68,11 +70,13 @@ class JDExternalQuoteView(BaseViewModule):
         self.jd_maintain_quote_service: Optional[JDMaintainQuoteService] = None
         self.jd_quote_data_service: Optional[JDQuoteDataService] = None
 
+        print("DEBUG: In JDExternalQuoteView.__init__ - BEFORE asyncio.create_task for _initialize_jd_services")
         try:
             asyncio.create_task(self._initialize_jd_services())
         except RuntimeError as e:
             self.logger.error(f"Failed to create task for _initialize_jd_services, event loop might not be running: {e}")
 
+        print("DEBUG: In JDExternalQuoteView.__init__ - BEFORE self._init_ui()")
         self._init_ui() # Initializes UI elements including self.launch_button
 
         # Authentication button (seems to be duplicated logic, simplifying)
@@ -82,6 +86,7 @@ class JDExternalQuoteView(BaseViewModule):
         # For now, focusing on integrating the new services.
         # The _update_ui_status will reflect the new services' states.
 
+        print("DEBUG: In JDExternalQuoteView.__init__ - BEFORE self._update_ui_status()")
         self._update_ui_status() # Initial UI status update
 
     async def _initialize_jd_services(self):
@@ -103,15 +108,36 @@ class JDExternalQuoteView(BaseViewModule):
                 self.logger.error(f"Exception during JD service initialization: {e}", exc_info=True)
         else:
             self.logger.warning("Auth manager not available or not configured. JD Services will not be initialized.")
-        self._update_ui_status() # Update UI after services attempt to initialize
+
+        try:
+            if not self.parent():
+                self.logger.warning(f"{self.module_name}: View (jd_external_quote_view) seems to be deleted or has no parent. Aborting UI update from _initialize_jd_services.")
+                return
+            # Optional: Add a check if essential UI elements for _update_ui_status exist,
+            # e.g., if not hasattr(self, 'launch_button'): self.logger.warning(...); return
+            # This is tricky if _init_ui isn't running.
+        except RuntimeError as e:
+            self.logger.warning(f"{self.module_name}: View (jd_external_quote_view) is deleted (RuntimeError during pre-update check). Aborting UI update. Error: {e}")
+            return
+
+        try:
+            self._update_ui_status()
+        except RuntimeError as e:
+            self.logger.error(f"{self.module_name}: RuntimeError during _update_ui_status in _initialize_jd_services. View likely deleted. Error: {e}")
+            return
 
 
     def _update_ui_status(self):
-        """Updates the UI elements based on service and configuration status."""
-        if not hasattr(self, 'launch_button'): # UI not fully initialized yet
-            return
+        try:
+            # Original content of _update_ui_status starts here
+            if not hasattr(self, 'launch_button'):
+                # This conditional check itself might be problematic if _init_ui wasn't called
+                # and launch_button was never created.
+                # If self is a deleted C++ object, hasattr(self, ...) can raise RuntimeError.
+                self.logger.debug(f"{self.module_name}: launch_button not present in _update_ui_status. UI likely not fully initialized or view is closing.")
+                return
 
-        # Check primary service for launching external tool (can be old or new)
+            # Check primary service for launching external tool (can be old or new)
         # For now, let's assume jd_maintain_quote_service is a prerequisite for new functionalities
         # that the external tool might rely on.
         can_launch_external_tool = True
@@ -167,9 +193,14 @@ class JDExternalQuoteView(BaseViewModule):
             self.launch_button.setEnabled(False)
             self.output_text_edit.setText(final_status_text)
 
+        except RuntimeError as e:
+            self.logger.warning(f"{self.module_name}: RuntimeError in _update_ui_status. View likely deleted. Error: {e}")
+            return # Important to return and not try further UI interaction
+
 
     def _init_ui(self):
         """Initialize the user interface components."""
+        print("DEBUG: JDExternalQuoteView _init_ui called")
         self.logger.debug(f"JDExternalQuoteView._init_ui called for instance {id(self)}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
