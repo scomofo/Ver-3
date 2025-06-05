@@ -4,6 +4,7 @@
 
 import logging
 import os
+import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QApplication, 
                              QLabel, QMessageBox, QPushButton, QHBoxLayout)
 from PyQt6.QtCore import Qt

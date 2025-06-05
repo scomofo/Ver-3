@@ -85,36 +85,36 @@ class InvoiceModuleView(BaseViewModule):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Header
-        # title_label = QLabel("Invoice from Quote")
-        # title_font = QFont("Arial", 16, QFont.Weight.Bold)
-        # title_label.setFont(title_font)
-        # title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
-        # main_layout.addWidget(title_label)
+        # --- Simplified Title (from previous step, can be kept or removed for this test) ---
+        title_label_diag = QLabel("Simplified Original Invoice View - Testing") # Renamed to avoid conflict
+        font_diag = QFont("Arial", 16, QFont.Weight.Bold) # Renamed to avoid conflict
+        title_label_diag.setFont(font_diag)
+        main_layout.addWidget(title_label_diag)
 
-        # # Quote info section
-        # quote_info_group = QGroupBox("Quote Information")
-        # quote_info_layout = QFormLayout()
+        # --- Start of UNCOMMENTED/RESTORED Quote info section ---
+        quote_info_group = QGroupBox("Quote Information")
+        quote_info_layout = QFormLayout()
 
-        # self.quote_id_field = QLineEdit()
-        # self.quote_id_field.setReadOnly(True)
+        self.quote_id_field = QLineEdit()
+        self.quote_id_field.setReadOnly(True)
 
-        # self.customer_name_field = QLineEdit()
-        # self.customer_name_field.setReadOnly(True)
+        self.customer_name_field = QLineEdit()
+        self.customer_name_field.setReadOnly(True)
 
-        # self.salesperson_field = QLineEdit()
-        # self.salesperson_field.setReadOnly(True)
+        self.salesperson_field = QLineEdit()
+        self.salesperson_field.setReadOnly(True)
 
-        # self.creation_date_field = QLineEdit()
-        # self.creation_date_field.setReadOnly(True)
+        self.creation_date_field = QLineEdit()
+        self.creation_date_field.setReadOnly(True)
 
-        # quote_info_layout.addRow("Quote ID:", self.quote_id_field)
-        # quote_info_layout.addRow("Customer:", self.customer_name_field)
-        # quote_info_layout.addRow("Salesperson:", self.salesperson_field)
-        # quote_info_layout.addRow("Created:", self.creation_date_field)
+        quote_info_layout.addRow("Quote ID:", self.quote_id_field)
+        quote_info_layout.addRow("Customer:", self.customer_name_field)
+        quote_info_layout.addRow("Salesperson:", self.salesperson_field)
+        quote_info_layout.addRow("Created:", self.creation_date_field)
 
-        # quote_info_group.setLayout(quote_info_layout)
-        # main_layout.addWidget(quote_info_group)
+        quote_info_group.setLayout(quote_info_layout)
+        main_layout.addWidget(quote_info_group)
+        # --- End of UNCOMMENTED/RESTORED Quote info section ---
 
         # # Equipment section
         # equipment_group = QGroupBox("Equipment")
@@ -194,13 +194,8 @@ class InvoiceModuleView(BaseViewModule):
 
         # main_layout.addLayout(buttons_layout)
 
-        title_label = QLabel("Simplified Original Invoice View - Testing")
-        # Ensure QFont is imported: from PyQt6.QtGui import QFont
-        font = QFont("Arial", 16, QFont.Weight.Bold)
-        title_label.setFont(font)
-        main_layout.addWidget(title_label)
-
-        self.test_status_label = QLabel("Status: Simplified UI Loaded")
+        # --- Simplified Status Label (from previous step) ---
+        self.test_status_label = QLabel("Status: Simplified UI + Quote Info Loaded")
         main_layout.addWidget(self.test_status_label)
         main_layout.addStretch()
         
