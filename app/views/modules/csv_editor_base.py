@@ -107,6 +107,7 @@ class CsvEditorBase(BaseViewModule):
         self.logger.info(f"SharePoint URL for {filename} set to: {self.sharepoint_file_url}")
     
     def _init_ui(self):
+        self.logger.debug(f"CsvEditorBase._init_ui called for instance {id(self)} for module {self.module_name}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)

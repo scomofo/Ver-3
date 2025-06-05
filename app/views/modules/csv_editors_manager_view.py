@@ -244,6 +244,7 @@ class CsvEditorsManagerView(BaseViewModule):
         return "data_editors_icon.png" # Ensure this icon exists
 
     def _init_ui(self):
+        self.logger.debug(f"CsvEditorsManagerView._init_ui called for instance {id(self)}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)

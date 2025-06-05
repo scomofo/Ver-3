@@ -81,6 +81,7 @@ class InvoiceModuleView(BaseViewModule):
         
     def _init_ui(self):
         """Initialize the user interface."""
+        self.logger.debug(f"InvoiceModuleView._init_ui called for instance {id(self)}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         
