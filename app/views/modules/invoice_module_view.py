@@ -153,17 +153,17 @@ class InvoiceModuleView(BaseViewModule):
         tradein_group.setLayout(tradein_layout)
         main_layout.addWidget(tradein_group)
 
-        # # Notes section
-        # notes_group = QGroupBox("Notes")
-        # notes_layout = QVBoxLayout()
+        # Notes section
+        notes_group = QGroupBox("Notes")
+        notes_layout = QVBoxLayout() # This layout is for the group box
 
-        # self.notes_text = QTextEdit()
-        # self.notes_text.setReadOnly(True)
-        # self.notes_text.setMinimumHeight(80)
+        self.notes_text = QTextEdit()
+        self.notes_text.setReadOnly(True) # Assuming it's read-only by default
+        self.notes_text.setMinimumHeight(80) # Example height
 
-        # notes_layout.addWidget(self.notes_text)
-        # notes_group.setLayout(notes_layout)
-        # main_layout.addWidget(notes_group)
+        notes_layout.addWidget(self.notes_text)
+        notes_group.setLayout(notes_layout)
+        main_layout.addWidget(notes_group)
 
         # # Buttons section
         # buttons_layout = QHBoxLayout()
