@@ -116,8 +116,11 @@ class CsvEditorBase(BaseViewModule):
         print(f"DEBUG: CsvEditorBase _init_ui called for: {{self.objectName() if hasattr(self, 'objectName') and callable(self.objectName) else self.module_name}}")
         self.logger.debug(f"CsvEditorBase._init_ui called for instance {id(self)} for module {self.module_name}")
         print(f"DEBUG: In CsvEditorBase._init_ui - BEFORE main layout command for: {{self.objectName() if hasattr(self, 'objectName') and callable(self.objectName) else self.module_name}}")
-        main_layout = QVBoxLayout(self)
-        print(f"DEBUG: In CsvEditorBase._init_ui - AFTER main layout command for: {{self.objectName() if hasattr(self, 'objectName') and callable(self.objectName) else self.module_name}}. self.layout() is {{self.layout()}}")
+        main_layout = QVBoxLayout()
+        # QVBoxLayout(self) implicitly calls self.setLayout(). We are making it explicit.
+        print(f"DEBUG: CsvEditorBase _init_ui - About to call self.setLayout. Type of self: {{type(self)}}, id(self.logger): {{id(self.logger) if self.logger else 'None'}}")
+        self.setLayout(main_layout)
+        print(f"DEBUG: CsvEditorBase _init_ui - Returned from self.setLayout. self.layout() is {{self.layout()}}")
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
         

@@ -203,8 +203,11 @@ class JDExternalQuoteView(BaseViewModule):
         print("DEBUG: JDExternalQuoteView _init_ui called")
         self.logger.debug(f"JDExternalQuoteView._init_ui called for instance {id(self)}")
         print("DEBUG: In JDExternalQuoteView._init_ui - BEFORE main layout command")
-        main_layout = QVBoxLayout(self)
-        print(f"DEBUG: In JDExternalQuoteView._init_ui - AFTER main layout command. self.layout() is {{self.layout()}}")
+        main_layout = QVBoxLayout()
+        # QVBoxLayout(self) implicitly calls self.setLayout(). We are making it explicit.
+        print(f"DEBUG: JDExternalQuoteView _init_ui - About to call self.setLayout. Type of self: {{type(self)}}, id(self.logger): {{id(self.logger) if self.logger else 'None'}}")
+        self.setLayout(main_layout)
+        print(f"DEBUG: JDExternalQuoteView _init_ui - Returned from self.setLayout. self.layout() is {{self.layout()}}")
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
 

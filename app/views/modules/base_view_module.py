@@ -58,6 +58,7 @@ class BaseViewModule(QWidget):
         self.logger.info(f"{self.module_name} initialized.")
 
     def setLayout(self, new_layout):
+        print(f"PRINT_DIAG_SETLAYOUT_BASE_ENTRY: Instance {{id(self)}} of type {{type(self).__name__}} entered BaseViewModule.setLayout DIRECTLY. Logger is {{getattr(self, 'logger', 'NOT_FOUND')}}")
         module_display_name = getattr(self, 'module_name', self.__class__.__name__)
         instance_id = id(self)
 
