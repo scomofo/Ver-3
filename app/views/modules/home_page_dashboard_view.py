@@ -7,10 +7,10 @@ import datetime # For handling dates for historical forex data
 from typing import Optional, List, Dict, Any
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QApplication
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QApplication, QToolTip
 )
-from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QRunnable, QThreadPool # Added QObject, pyqtSignal, QRunnable, QThreadPool
-from PyQt6.QtGui import QFont, QColor # Added QColor
+from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QRunnable, QThreadPool
+from PyQt6.QtGui import QFont, QColor
 
 from app.views.modules.base_view_module import BaseViewModule
 # Placeholder for API clients or services if needed in the future
@@ -68,7 +68,7 @@ class Worker(QRunnable):
             self.signals.finished.emit()
 
 # --- Constants ---
-OPENWEATHERMAP_API_KEY = "YOUR_API_KEY_HERE"
+OPENWEATHERMAP_API_KEY = "YOUR_API_KEY_HERE"  # Replace with your actual API key
 OPENWEATHERMAP_BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 EXCHANGERATE_API_KEY = "YOUR_API_KEY_HERE"
 EXCHANGERATE_BASE_URL = "https://v6.exchangerate-api.com/v6/"
@@ -80,6 +80,18 @@ CITIES_DETAILS: List[Dict[str, str]] = [
     {"key": "Killam", "display_name": "Killam, AB", "query": "Killam,CA"},
     {"key": "Provost", "display_name": "Provost, AB", "query": "Provost,CA"},
 ]
+
+WEATHER_UNICODE_MAP = {
+    "01d": "☀️", "01n": "🌙",  # Clear sky
+    "02d": "⛅️", "02n": "☁️",  # Few clouds
+    "03d": "☁️", "03n": "☁️",  # Scattered clouds
+    "04d": "☁️", "04n": "☁️",  # Broken clouds / Overcast
+    "09d": "🌧️", "09n": "🌧️",  # Shower rain
+    "10d": "🌦️", "10n": "🌧️",  # Rain
+    "11d": "⛈️", "11n": "⛈️",  # Thunderstorm
+    "13d": "❄️", "13n": "❄️",  # Snow
+    "50d": "🌫️", "50n": "🌫️",  # Mist/Fog
+}
 
 # --- Weather Card Widget ---
 class WeatherCardWidget(QFrame):
@@ -107,41 +119,69 @@ class WeatherCardWidget(QFrame):
         self.city_name_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         layout.addWidget(self.city_name_label)
 
+        # Icon and Main Temperature (Horizontally Aligned)
+        temp_icon_layout = QHBoxLayout()
+
+        self.icon_label = QLabel("🌡️") # Default icon
+        self.icon_label.setFont(QFont("Arial", 24)) # Larger font for Unicode icon
+        temp_icon_layout.addWidget(self.icon_label)
+
         self.temperature_label = QLabel("--°C")
         self.temperature_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        self.temperature_label.setStyleSheet("color: #1a5276;") # Darker blue for temp
-        layout.addWidget(self.temperature_label)
+        self.temperature_label.setStyleSheet("color: #1a5276;")
+        temp_icon_layout.addWidget(self.temperature_label)
+        temp_icon_layout.addStretch()
+        layout.addLayout(temp_icon_layout)
+
+        # Min/Max Temperature
+        self.min_max_temp_label = QLabel("Min: --°C / Max: --°C")
+        self.min_max_temp_label.setFont(QFont("Arial", 9))
+        layout.addWidget(self.min_max_temp_label)
+
+        # Feels Like Temperature
+        self.feels_like_label = QLabel("Feels like: --°C")
+        self.feels_like_label.setFont(QFont("Arial", 9))
+        layout.addWidget(self.feels_like_label)
 
         self.condition_label = QLabel("Condition: --")
         self.condition_label.setFont(QFont("Arial", 9))
         layout.addWidget(self.condition_label)
 
-        self.icon_label = QLabel("Icon: --") # Placeholder for icon or code
-        self.icon_label.setFont(QFont("Arial", 8))
-        self.icon_label.setMinimumHeight(20) # Space for potential icon
-        layout.addWidget(self.icon_label)
-
-        layout.addStretch() # Push status label to the bottom
+        layout.addStretch()
 
         self.status_label = QLabel("Status: Initializing...")
         self.status_label.setFont(QFont("Arial", 8, QFont.Weight.Bold Italic))
         self.status_label.setStyleSheet("color: #566573;") # Grey for status
         layout.addWidget(self.status_label)
 
+        self.detailed_error_message = None # For storing detailed error for tooltip
+        self.setMouseTracking(True) # Enable mouse tracking for hover events on the card
+        self.status_label.setMouseTracking(True) # Also on the label itself
+
         self.set_status_initializing()
 
 
-    def update_data(self, city_name: str, temp: float, condition: str, icon_code: Optional[str]):
+    def update_data(self, city_name: str, temp: float, condition: str, icon_code: Optional[str],
+                    temp_min: Optional[float], temp_max: Optional[float], feels_like: Optional[float]):
         self.city_name_label.setText(city_name)
         self.temperature_label.setText(f"{temp:.1f}°C")
-        self.condition_label.setText(f"Condition: {condition.capitalize()}")
-        if icon_code:
-            self.icon_label.setText(f"Icon: {icon_code}")
-            # In a future step, this could load an image:
-            # self.icon_label.setPixmap(get_weather_icon_pixmap(icon_code))
+
+        if temp_min is not None and temp_max is not None:
+            self.min_max_temp_label.setText(f"Min: {temp_min:.1f}°C / Max: {temp_max:.1f}°C")
         else:
-            self.icon_label.setText("") # Clear if no icon
-        self.status_label.setText("") # Clear status on successful update
+            self.min_max_temp_label.setText("Min/Max: N/A")
+
+        if feels_like is not None:
+            self.feels_like_label.setText(f"Feels like: {feels_like:.1f}°C")
+        else:
+            self.feels_like_label.setText("Feels like: N/A")
+
+        self.condition_label.setText(f"Condition: {condition.capitalize()}")
+
+        unicode_char = WEATHER_UNICODE_MAP.get(icon_code, "❓") if icon_code else "🌡️"
+        self.icon_label.setText(unicode_char)
+
+        self.status_label.setText("")
         self.status_label.setVisible(False)
         self.setStyleSheet("""
             #WeatherCard {
@@ -153,12 +193,14 @@ class WeatherCardWidget(QFrame):
 
 
     def set_status_fetching(self, city_name: str):
-        self.city_name_label.setText(city_name) # Show city name even while fetching
+        self.city_name_label.setText(city_name)
         self.temperature_label.setText("--°C")
+        self.min_max_temp_label.setText("Min: --°C / Max: --°C")
+        self.feels_like_label.setText("Feels like: --°C")
         self.condition_label.setText("Condition: --")
-        self.icon_label.setText("")
-        self.status_label.setText("⏳ Fetching data...")
-        self.status_label.setStyleSheet("color: #1f618d;") # Blue for fetching
+        self.icon_label.setText("⏳") # Hourglass icon
+        self.status_label.setText("Fetching data...")
+        self.status_label.setStyleSheet("color: #1f618d;")
         self.status_label.setVisible(True)
         self.setStyleSheet("""
             #WeatherCard {
@@ -169,29 +211,39 @@ class WeatherCardWidget(QFrame):
             }""")
 
     def set_status_error(self, city_name: str, message: str, is_api_key_error: bool):
-        self.city_name_label.setText(city_name) # Show city name even on error
+        self.city_name_label.setText(city_name)
         self.temperature_label.setText("ERR")
+        self.min_max_temp_label.setText("Min/Max: Error")
+        self.feels_like_label.setText("Feels like: Error")
         self.condition_label.setText("Condition: Error")
-        self.icon_label.setText("")
-        self.status_label.setText(f"⚠️ Error: {message}")
+        self.icon_label.setText("⚠️") # Warning icon
+
+        self.detailed_error_message = message # Store full message for tooltip
+        brief_message = "Failed" # Generic brief message for the label
+        if is_api_key_error:
+            brief_message = "API Key Error"
+        elif "timeout" in message.lower():
+            brief_message = "Timeout"
+
+        self.status_label.setText(f"⚠️ Error: {brief_message} ⓘ")
         self.status_label.setVisible(True)
 
         if is_api_key_error:
-            self.status_label.setStyleSheet("color: #c0392b; font-weight: bold;") # Red, bold for API key error
+            self.status_label.setStyleSheet("color: #c0392b; font-weight: bold;")
             self.setStyleSheet("""
                 #WeatherCard {
-                    background-color: #fadbd8; /* Light red for API key error */
+                    background-color: #fadbd8;
                     border: 1px solid #f5b7b1;
                     border-radius: 6px;
                     padding: 10px;
                 }
-                QLabel { color: #78281f; } /* Darker red text for API key error */
+                QLabel { color: #78281f; }
             """)
         else:
-            self.status_label.setStyleSheet("color: #d35400;") # Orange for other errors
+            self.status_label.setStyleSheet("color: #d35400;")
             self.setStyleSheet("""
                 #WeatherCard {
-                    background-color: #feefea; /* Light orange for other errors */
+                    background-color: #feefea;
                     border: 1px solid #fAD7A0;
                     border-radius: 6px;
                     padding: 10px;
@@ -202,11 +254,29 @@ class WeatherCardWidget(QFrame):
     def set_status_initializing(self):
         self.city_name_label.setText("Weather Card")
         self.temperature_label.setText("--°C")
+        self.min_max_temp_label.setText("Min: --°C / Max: --°C")
+        self.feels_like_label.setText("Feels like: --°C")
         self.condition_label.setText("Condition: --")
-        self.icon_label.setText("")
+        self.icon_label.setText("⏳") # Hourglass icon
         self.status_label.setText("Initializing...")
         self.status_label.setStyleSheet("color: #566573;")
         self.status_label.setVisible(True)
+        self.detailed_error_message = None # Clear detailed error on re-init
+
+    def enterEvent(self, event):
+        # Show tooltip if detailed error exists and mouse is roughly over status_label
+        if self.detailed_error_message and self.status_label.isVisible():
+            # Check if mouse is over the status_label area
+            status_label_rect = self.status_label.geometry()
+            # Map status_label_rect to WeatherCardWidget's coordinates
+            # This is a simplification; for precise hover on label, event filter on label is better
+            if status_label_rect.contains(event.pos()):
+                 QToolTip.showText(event.globalPos(), self.detailed_error_message, self, status_label_rect)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        QToolTip.hideText()
+        super().leaveEvent(event)
 
 
 class HomePageDashboardView(BaseViewModule):
@@ -300,14 +370,16 @@ class HomePageDashboardView(BaseViewModule):
 
         self.forex_usdcad_label = QLabel("🇺🇸🇨🇦 USD-CAD: Fetching...")
         self.forex_usdcad_label.setFont(QFont("Arial", 11, QFont.Weight.Medium))
+        self.forex_usdcad_label.setTextFormat(Qt.TextFormat.RichText) # Ensure RichText is enabled
         financial_layout.addWidget(self.forex_usdcad_label)
 
-        self.canola_price_label = QLabel("🌾 Canola: Fetching...")
-        self.canola_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium))
-        financial_layout.addWidget(self.canola_price_label)
+        # self.canola_price_label = QLabel("🌾 Canola: Fetching...") # Removed
+        # self.canola_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium)) # Removed
+        # financial_layout.addWidget(self.canola_price_label) # Removed
 
         self.btc_price_label = QLabel("₿ BTC-USD: Fetching...")
         self.btc_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium))
+        self.btc_price_label.setTextFormat(Qt.TextFormat.RichText) # Ensure RichText is enabled
         financial_layout.addWidget(self.btc_price_label)
         
         financial_layout.addStretch()
@@ -334,7 +406,7 @@ class HomePageDashboardView(BaseViewModule):
         self._fetch_weather_data()
         self._fetch_forex_data()
         self._fetch_crypto_prices()
-        self._fetch_commodity_prices()
+        # self._fetch_commodity_prices() # Removed
 
     def _refresh_all_data(self):
         self.logger.info("Timer triggered: Refreshing all dashboard data...")
@@ -342,7 +414,7 @@ class HomePageDashboardView(BaseViewModule):
         self._fetch_weather_data()
         self._fetch_forex_data()
         self._fetch_crypto_prices()
-        self._fetch_commodity_prices()
+        # self._fetch_commodity_prices() # Removed
         self._update_status("Dashboard data refreshed (timer).")
 
     # --- Weather Data Handling ---
@@ -360,14 +432,29 @@ class HomePageDashboardView(BaseViewModule):
                 self.logger.error(f"API error for {display_name}: {error_message}")
                 raise Exception(f"API Error: {error_message}") # Worker will catch and emit this
 
-            temp = data.get('main', {}).get('temp')
-            condition = data.get('weather', [{}])[0].get('description', 'N/A')
-            icon_code = data.get('weather', [{}])[0].get('icon', None)
+            main_data = data.get('main', {})
+            temp = main_data.get('temp')
+            temp_min = main_data.get('temp_min')
+            temp_max = main_data.get('temp_max')
+            feels_like = main_data.get('feels_like')
 
-            if temp is None:
-                raise ValueError("Temperature data not found in API response.")
+            weather_info = data.get('weather', [{}])[0]
+            condition = weather_info.get('description', 'N/A')
+            icon_code = weather_info.get('icon', None)
 
-            return {'key': city_key, 'name': display_name, 'temp': temp, 'condition': condition, 'icon': icon_code}
+            if temp is None: # temp_min, temp_max, feels_like can be None if not available
+                raise ValueError("Core temperature data not found in API response.")
+
+            return {
+                'key': city_key,
+                'name': display_name,
+                'temp': temp,
+                'condition': condition,
+                'icon': icon_code,
+                'temp_min': temp_min,
+                'temp_max': temp_max,
+                'feels_like': feels_like
+            }
 
         except requests.exceptions.Timeout as e:
             self.logger.error(f"Timeout fetching weather for {display_name}: {e}")
@@ -423,7 +510,10 @@ class HomePageDashboardView(BaseViewModule):
                 city_name=result['name'],
                 temp=result['temp'],
                 condition=result['condition'],
-                icon_code=result.get('icon')
+                icon_code=result.get('icon'),
+                temp_min=result.get('temp_min'),
+                temp_max=result.get('temp_max'),
+                feels_like=result.get('feels_like')
             )
         else:
             self.logger.warning(f"Received weather data for unknown city key: {city_key}")
@@ -448,19 +538,9 @@ class HomePageDashboardView(BaseViewModule):
 
 
     # --- Other Data Fetching Methods (Forex, Commodity, Crypto) ---
-    # These remain largely unchanged for now, but could be refactored similarly
-    # to use threaded workers if they become too slow.
 
-    def _fetch_forex_data(self):
-        self.logger.info("Fetching USD-CAD forex data...")
-        self._update_status("Fetching USD-CAD data...")
-
-        if EXCHANGERATE_API_KEY == "YOUR_API_KEY_HERE":
-            self.logger.warning("ExchangeRate-API key is not set. Forex data will not be fetched.")
-            self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: API Key Required")
-            self._update_status("Forex: API Key Required")
-            return
-
+    def _fetch_forex_data_worker(self) -> Optional[Dict[str, Any]]:
+        self.logger.info("Worker: Fetching USD-CAD forex data...")
         current_rate: Optional[float] = None
         historical_rate: Optional[float] = None
 
@@ -469,21 +549,14 @@ class HomePageDashboardView(BaseViewModule):
             response_latest = requests.get(url_latest, timeout=10)
             response_latest.raise_for_status()
             data_latest = response_latest.json()
-
             if data_latest.get("result") == "success" and 'conversion_rates' in data_latest:
                 current_rate = data_latest['conversion_rates'].get('CAD')
             else:
-                error_msg = data_latest.get("error-type", "API error")
-                self.logger.error(f"ExchangeRate-API error for latest rate: {error_msg}")
-        except requests.exceptions.Timeout:
-            self.logger.error("Timeout fetching latest USD-CAD rate.")
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching latest USD-CAD rate: {e}", exc_info=True)
-        except json.JSONDecodeError:
-            self.logger.error("Error decoding JSON for latest USD-CAD rate.")
+                raise Exception(f"API Error: {data_latest.get('error-type', 'Unknown API error')}")
         except Exception as e:
-            self.logger.error(f"Unexpected error fetching latest USD-CAD rate: {e}", exc_info=True)
-
+            self.logger.error(f"Worker: Error fetching latest USD-CAD rate: {e}", exc_info=True)
+            # Optionally re-raise or return partial data / specific error
+            raise # Re-raise to be caught by Worker's main error handler
 
         try:
             date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
@@ -491,46 +564,84 @@ class HomePageDashboardView(BaseViewModule):
             response_historical = requests.get(url_historical, timeout=10)
             response_historical.raise_for_status()
             data_historical = response_historical.json()
-
             if data_historical.get("result") == "success" and 'conversion_rates' in data_historical:
                 historical_rate = data_historical['conversion_rates'].get('CAD')
             else:
-                error_msg = data_historical.get("error-type", "API error")
-                self.logger.error(f"ExchangeRate-API error for historical rate: {error_msg}")
-        except requests.exceptions.Timeout:
-            self.logger.error("Timeout fetching historical USD-CAD rate.")
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching historical USD-CAD rate: {e}", exc_info=True)
-        except json.JSONDecodeError:
-            self.logger.error("Error decoding JSON for historical USD-CAD rate.")
+                 raise Exception(f"API Error for historical: {data_historical.get('error-type', 'Unknown API error')}")
         except Exception as e:
-             self.logger.error(f"Unexpected error fetching historical USD-CAD rate: {e}", exc_info=True)
+            self.logger.error(f"Worker: Error fetching historical USD-CAD rate: {e}", exc_info=True)
+            # If current_rate was fetched, we might still return it, or handle error more gracefully
+            # For now, let's ensure both are available or it's an error.
+            # If current_rate is None at this point, it implies the first block failed and raised.
+            # If current_rate is not None but historical fails, we might want to return partial or raise.
+            # For simplicity, if historical fails after current succeeded, we'll let it propagate.
+            raise
 
-        if current_rate is not None and historical_rate is not None:
-            if current_rate > historical_rate:
-                trend_arrow = "↑"
-            elif current_rate < historical_rate:
-                trend_arrow = "↓"
-            else:
+        return {"current_rate": current_rate, "historical_rate": historical_rate}
+
+    def _on_forex_data_received(self, data: Optional[Dict[str, Any]]):
+        self.logger.info("Forex data received.")
+        if data is None: # Should be handled by error signal, but as a safeguard
+            self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: Error fetching data")
+            self._update_status("Forex: Error")
+            return
+
+        current_rate = data.get("current_rate")
+        historical_rate = data.get("historical_rate")
+
+        color_green = "#28a745"
+        color_red = "#dc3545"
+        color_grey = "#566573"
+        display_text = "🇺🇸🇨🇦 USD-CAD: Data N/A"
+
+        if current_rate is not None:
+            if historical_rate is not None and historical_rate != 0:
+                perc_change = ((current_rate - historical_rate) / historical_rate) * 100
                 trend_arrow = "→"
-            self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} {trend_arrow}")
-        elif current_rate is not None:
-            self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A)")
-        else:
-            self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: Data N/A")
+                arrow_color = color_grey
+                if current_rate > historical_rate:
+                    trend_arrow = "↑"
+                    arrow_color = color_green
+                elif current_rate < historical_rate:
+                    trend_arrow = "↓"
+                    arrow_color = color_red
+                display_text = (f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} "
+                                f"<font color='{arrow_color}'>{trend_arrow}</font> "
+                                f"({perc_change:+.2f}%)")
+            elif historical_rate == 0:
+                display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A, Hist. was 0)"
+            else:
+                display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A)"
         
-        self._update_status("Forex data fetch attempt complete.")
+        self.forex_usdcad_label.setText(display_text)
+        self._update_status("Forex data updated.")
 
-    def _fetch_commodity_prices(self):
-        self.logger.info("Attempting to fetch commodity prices (e.g., Canola)...")
-        self.canola_price_label.setText("🌾 Canola: Price Data N/A")
-        self.logger.info("Canola price data is not integrated due to lack of a readily available free public API.")
-        self._update_status("Canola Price: Data N/A")
+    def _on_forex_data_error(self, error_info: tuple):
+        # error_info might be (None, exc_type, exception, traceback_str) if city_key is not used for forex/crypto
+        _optional_key, exc_type, error_val, tb_str = error_info
+        self.logger.error(f"Error fetching forex data: {exc_type.__name__} - {error_val}\nTrace: {tb_str}")
+        self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: ⚠️ Error ({exc_type.__name__})")
+        self._update_status("Forex: Error")
 
-    def _fetch_crypto_prices(self):
-        self.logger.info("Fetching BTC-USD price data from CoinGecko...")
-        self._update_status("Fetching BTC-USD data...")
+    def _fetch_forex_data(self):
+        self.logger.info("Initiating fetch for USD-CAD forex data...")
+        self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: ⏳ Fetching...")
+        self._update_status("Fetching USD-CAD data...")
 
+        if EXCHANGERATE_API_KEY == "YOUR_API_KEY_HERE":
+            self.logger.warning("ExchangeRate-API key is not set. Forex data will not be fetched.")
+            self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: API Key Required")
+            self._update_status("Forex: API Key Required")
+            return
+
+        worker = Worker(self._fetch_forex_data_worker) # No city_key needed here
+        worker.signals.result.connect(self._on_forex_data_received)
+        worker.signals.error.connect(self._on_forex_data_error)
+        self.thread_pool.start(worker)
+
+    # --- Crypto Data Handling ---
+    def _fetch_crypto_prices_worker(self) -> Optional[Dict[str, Any]]:
+        self.logger.info("Worker: Fetching BTC-USD price data...")
         current_btc_price: Optional[float] = None
         historical_btc_price: Optional[float] = None
 
@@ -539,58 +650,85 @@ class HomePageDashboardView(BaseViewModule):
             response_current_btc = requests.get(url_current_btc, timeout=10)
             response_current_btc.raise_for_status()
             data_current_btc = response_current_btc.json()
-            
             if 'bitcoin' in data_current_btc and 'usd' in data_current_btc['bitcoin']:
                 current_btc_price = data_current_btc['bitcoin']['usd']
             else:
-                self.logger.error("CoinGecko API response for current price is missing expected data.")
-        except requests.exceptions.Timeout:
-            self.logger.error("Timeout fetching current BTC price from CoinGecko.")
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching current BTC price from CoinGecko: {e}", exc_info=True)
-        except json.JSONDecodeError:
-            self.logger.error("Error decoding JSON for current BTC price from CoinGecko.")
+                raise Exception("CoinGecko API response for current price is missing expected data.")
         except Exception as e:
-            self.logger.error(f"Unexpected error fetching current BTC price: {e}", exc_info=True)
+            self.logger.error(f"Worker: Error fetching current BTC price: {e}", exc_info=True)
+            raise
 
         try:
             date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
             formatted_date_7_days_ago = date_7_days_ago.strftime('%d-%m-%Y')
-            
             url_historical_btc = f"{COINGECKO_BASE_URL}coins/bitcoin/history?date={formatted_date_7_days_ago}&localization=false"
             response_historical_btc = requests.get(url_historical_btc, timeout=10)
             response_historical_btc.raise_for_status()
             data_historical_btc = response_historical_btc.json()
-
-            if 'market_data' in data_historical_btc and \
-               'current_price' in data_historical_btc['market_data'] and \
-               'usd' in data_historical_btc['market_data']['current_price']:
+            if ('market_data' in data_historical_btc and
+                'current_price' in data_historical_btc['market_data'] and
+                'usd' in data_historical_btc['market_data']['current_price']):
                 historical_btc_price = data_historical_btc['market_data']['current_price']['usd']
             else:
-                self.logger.error("CoinGecko API response for historical price is missing expected data.")
-        except requests.exceptions.Timeout:
-            self.logger.error("Timeout fetching historical BTC price from CoinGecko.")
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching historical BTC price from CoinGecko: {e}", exc_info=True)
-        except json.JSONDecodeError:
-            self.logger.error("Error decoding JSON for historical BTC price from CoinGecko.")
+                raise Exception("CoinGecko API response for historical price is missing expected data.")
         except Exception as e:
-            self.logger.error(f"Unexpected error fetching historical BTC price: {e}", exc_info=True)
+            self.logger.error(f"Worker: Error fetching historical BTC price: {e}", exc_info=True)
+            raise
             
-        if current_btc_price is not None and historical_btc_price is not None:
-            if current_btc_price > historical_btc_price:
-                trend_arrow = "↑"
-            elif current_btc_price < historical_btc_price:
-                trend_arrow = "↓"
+        return {"current_btc_price": current_btc_price, "historical_btc_price": historical_btc_price}
+
+    def _on_crypto_data_received(self, data: Optional[Dict[str, Any]]):
+        self.logger.info("Crypto data received.")
+        if data is None:
+            self.btc_price_label.setText("₿ BTC-USD: Error fetching data")
+            self._update_status("Crypto: Error")
+            return
+
+        current_btc_price = data.get("current_btc_price")
+        historical_btc_price = data.get("historical_btc_price")
+
+        color_green = "#28a745"
+        color_red = "#dc3545"
+        color_grey = "#566573"
+        display_text_btc = "₿ BTC-USD: Data N/A"
+
+        if current_btc_price is not None:
+            if historical_btc_price is not None and historical_btc_price != 0:
+                perc_change_btc = ((current_btc_price - historical_btc_price) / historical_btc_price) * 100
+                trend_arrow_btc = "→"
+                arrow_color_btc = color_grey
+                if current_btc_price > historical_btc_price:
+                    trend_arrow_btc = "↑"
+                    arrow_color_btc = color_green
+                elif current_btc_price < historical_btc_price:
+                    trend_arrow_btc = "↓"
+                    arrow_color_btc = color_red
+                display_text_btc = (f"₿ BTC-USD: ${current_btc_price:,.2f} "
+                                    f"<font color='{arrow_color_btc}'>{trend_arrow_btc}</font> "
+                                    f"({perc_change_btc:+.2f}%)")
+            elif historical_btc_price == 0:
+                 display_text_btc = f"₿ BTC-USD: ${current_btc_price:,.2f} (Trend N/A, Hist. was 0)"
             else:
-                trend_arrow = "→"
-            self.btc_price_label.setText(f"₿ BTC-USD: ${current_btc_price:,.2f} {trend_arrow}")
-        elif current_btc_price is not None:
-            self.btc_price_label.setText(f"₿ BTC-USD: ${current_btc_price:,.2f} (Trend N/A)")
-        else:
-            self.btc_price_label.setText("₿ BTC-USD: Data N/A")
-            
-        self._update_status("BTC price data fetch attempt complete.")
+                display_text_btc = f"₿ BTC-USD: ${current_btc_price:,.2f} (Trend N/A)"
+
+        self.btc_price_label.setText(display_text_btc)
+        self._update_status("Crypto data updated.")
+
+    def _on_crypto_data_error(self, error_info: tuple):
+        _optional_key, exc_type, error_val, tb_str = error_info
+        self.logger.error(f"Error fetching crypto data: {exc_type.__name__} - {error_val}\nTrace: {tb_str}")
+        self.btc_price_label.setText(f"₿ BTC-USD: ⚠️ Error ({exc_type.__name__})")
+        self._update_status("Crypto: Error")
+
+    def _fetch_crypto_prices(self):
+        self.logger.info("Initiating fetch for BTC-USD price data...")
+        self.btc_price_label.setText("₿ BTC-USD: ⏳ Fetching...")
+        self._update_status("Fetching BTC-USD data...")
+
+        worker = Worker(self._fetch_crypto_prices_worker) # No city_key needed
+        worker.signals.result.connect(self._on_crypto_data_received)
+        worker.signals.error.connect(self._on_crypto_data_error)
+        self.thread_pool.start(worker)
 
     def get_icon_name(self) -> str:
         return "home_dashboard_icon.png"
