@@ -150,7 +150,10 @@ class WeatherCardWidget(QFrame):
         layout.addStretch()
 
         self.status_label = QLabel("Status: Initializing...")
-        self.status_label.setFont(QFont("Arial", 8, QFont.Weight.Bold Italic))
+        status_font = QFont("Arial", 8)
+        status_font.setBold(True)
+        status_font.setItalic(True)
+        self.status_label.setFont(status_font)
         self.status_label.setStyleSheet("color: #566573;") # Grey for status
         layout.addWidget(self.status_label)
 
