@@ -7,10 +7,10 @@ import datetime # For handling dates for historical forex data
 from typing import Optional, List, Dict, Any
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QApplication
 )
-from PyQt6.QtCore import Qt, QTimer # Added QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QRunnable, QThreadPool # Added QObject, pyqtSignal, QRunnable, QThreadPool
+from PyQt6.QtGui import QFont, QColor # Added QColor
 
 from app.views.modules.base_view_module import BaseViewModule
 # Placeholder for API clients or services if needed in the future
@@ -19,21 +19,61 @@ from app.views.modules.base_view_module import BaseViewModule
 # from app.services.commodity_service import CommodityService
 # from app.services.crypto_service import CryptoService
 
+# --- Worker Classes (Copied and adapted) ---
+class WorkerSignals(QObject):
+    """
+    Defines the signals available from a running worker thread.
+    Supported signals are:
+    finished: No data
+    error: tuple (city_key, exc_type, exception, traceback)
+    result: object data returned from processing
+    """
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)  # Now includes city_key
+    result = pyqtSignal(dict)  # Assuming result is a dict
+
+class Worker(QRunnable):
+    """
+    Worker thread
+    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+    :param callback: The function callback to run on this worker thread. Supplied args and
+                     kwargs will be passed through to the runner.
+    :type callback: function
+    :param args: Arguments to pass to callback function
+    :param kwargs: Keywords to pass to callback function
+    """
+    def __init__(self, fn, *args, **kwargs):
+        super(Worker, self).__init__()
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+
+        # Store city_key if provided in kwargs, to be emitted with error signal
+        self.city_key = kwargs.get('city_key', None)
+
+    def run(self):
+        """
+        Initialise the runner function with passed args, kwargs.
+        """
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+        except Exception as e:
+            import traceback
+            # Emit error with city_key
+            self.signals.error.emit((self.city_key, type(e), e, traceback.format_exc()))
+        else:
+            self.signals.result.emit(result)
+        finally:
+            self.signals.finished.emit()
+
 # --- Constants ---
-# TODO: Replace "YOUR_API_KEY_HERE" with a real OpenWeatherMap API key.
-# This key should ideally be loaded from a configuration file or environment variable.
-OPENWEATHERMAP_API_KEY = "YOUR_API_KEY_HERE" # TODO: Replace with your OpenWeatherMap API key
+OPENWEATHERMAP_API_KEY = "YOUR_API_KEY_HERE"
 OPENWEATHERMAP_BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
-
-# TODO: Replace "YOUR_API_KEY_HERE" with a real ExchangeRate-API key.
-# This key should ideally be loaded from a configuration file or environment variable.
-EXCHANGERATE_API_KEY = "YOUR_API_KEY_HERE" # TODO: Replace with your ExchangeRate-API key
+EXCHANGERATE_API_KEY = "YOUR_API_KEY_HERE"
 EXCHANGERATE_BASE_URL = "https://v6.exchangerate-api.com/v6/"
-
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3/"
 
-# Define cities with details for querying and display
-# Using "City,CountryCode" for q parameter in OpenWeatherMap. Province can be part of city name for specificity.
 CITIES_DETAILS: List[Dict[str, str]] = [
     {"key": "Camrose", "display_name": "Camrose, AB", "query": "Camrose,CA"},
     {"key": "Wainwright", "display_name": "Wainwright, AB", "query": "Wainwright,CA"},
@@ -41,11 +81,135 @@ CITIES_DETAILS: List[Dict[str, str]] = [
     {"key": "Provost", "display_name": "Provost, AB", "query": "Provost,CA"},
 ]
 
+# --- Weather Card Widget ---
+class WeatherCardWidget(QFrame):
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setObjectName("WeatherCard")
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setStyleSheet("""
+            #WeatherCard {
+                background-color: #e9f5fd; /* Light blue background */
+                border: 1px solid #d0e0f0;
+                border-radius: 6px;
+                padding: 10px;
+                min-height: 120px; /* Ensure a minimum height */
+            }
+            QLabel {
+                color: #2c3e50; /* Dark blue-grey text */
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(5)
+
+        self.city_name_label = QLabel("City")
+        self.city_name_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        layout.addWidget(self.city_name_label)
+
+        self.temperature_label = QLabel("--°C")
+        self.temperature_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        self.temperature_label.setStyleSheet("color: #1a5276;") # Darker blue for temp
+        layout.addWidget(self.temperature_label)
+
+        self.condition_label = QLabel("Condition: --")
+        self.condition_label.setFont(QFont("Arial", 9))
+        layout.addWidget(self.condition_label)
+
+        self.icon_label = QLabel("Icon: --") # Placeholder for icon or code
+        self.icon_label.setFont(QFont("Arial", 8))
+        self.icon_label.setMinimumHeight(20) # Space for potential icon
+        layout.addWidget(self.icon_label)
+
+        layout.addStretch() # Push status label to the bottom
+
+        self.status_label = QLabel("Status: Initializing...")
+        self.status_label.setFont(QFont("Arial", 8, QFont.Weight.Bold Italic))
+        self.status_label.setStyleSheet("color: #566573;") # Grey for status
+        layout.addWidget(self.status_label)
+
+        self.set_status_initializing()
+
+
+    def update_data(self, city_name: str, temp: float, condition: str, icon_code: Optional[str]):
+        self.city_name_label.setText(city_name)
+        self.temperature_label.setText(f"{temp:.1f}°C")
+        self.condition_label.setText(f"Condition: {condition.capitalize()}")
+        if icon_code:
+            self.icon_label.setText(f"Icon: {icon_code}")
+            # In a future step, this could load an image:
+            # self.icon_label.setPixmap(get_weather_icon_pixmap(icon_code))
+        else:
+            self.icon_label.setText("") # Clear if no icon
+        self.status_label.setText("") # Clear status on successful update
+        self.status_label.setVisible(False)
+        self.setStyleSheet("""
+            #WeatherCard {
+                background-color: #e9f5fd;
+                border: 1px solid #d0e0f0;
+                border-radius: 6px;
+                padding: 10px;
+            }""")
+
+
+    def set_status_fetching(self, city_name: str):
+        self.city_name_label.setText(city_name) # Show city name even while fetching
+        self.temperature_label.setText("--°C")
+        self.condition_label.setText("Condition: --")
+        self.icon_label.setText("")
+        self.status_label.setText("⏳ Fetching data...")
+        self.status_label.setStyleSheet("color: #1f618d;") # Blue for fetching
+        self.status_label.setVisible(True)
+        self.setStyleSheet("""
+            #WeatherCard {
+                background-color: #f4f6f6; /* Slightly muted while fetching */
+                border: 1px solid #d0e0f0;
+                border-radius: 6px;
+                padding: 10px;
+            }""")
+
+    def set_status_error(self, city_name: str, message: str, is_api_key_error: bool):
+        self.city_name_label.setText(city_name) # Show city name even on error
+        self.temperature_label.setText("ERR")
+        self.condition_label.setText("Condition: Error")
+        self.icon_label.setText("")
+        self.status_label.setText(f"⚠️ Error: {message}")
+        self.status_label.setVisible(True)
+
+        if is_api_key_error:
+            self.status_label.setStyleSheet("color: #c0392b; font-weight: bold;") # Red, bold for API key error
+            self.setStyleSheet("""
+                #WeatherCard {
+                    background-color: #fadbd8; /* Light red for API key error */
+                    border: 1px solid #f5b7b1;
+                    border-radius: 6px;
+                    padding: 10px;
+                }
+                QLabel { color: #78281f; } /* Darker red text for API key error */
+            """)
+        else:
+            self.status_label.setStyleSheet("color: #d35400;") # Orange for other errors
+            self.setStyleSheet("""
+                #WeatherCard {
+                    background-color: #feefea; /* Light orange for other errors */
+                    border: 1px solid #fAD7A0;
+                    border-radius: 6px;
+                    padding: 10px;
+                }
+                 QLabel { color: #b9770e; }
+            """)
+
+    def set_status_initializing(self):
+        self.city_name_label.setText("Weather Card")
+        self.temperature_label.setText("--°C")
+        self.condition_label.setText("Condition: --")
+        self.icon_label.setText("")
+        self.status_label.setText("Initializing...")
+        self.status_label.setStyleSheet("color: #566573;")
+        self.status_label.setVisible(True)
+
+
 class HomePageDashboardView(BaseViewModule):
-    """
-    A dashboard view to display various information widgets like weather,
-    forex, commodity prices, and cryptocurrency prices.
-    """
     MODULE_DISPLAY_NAME = "Home Dashboard"
 
     def __init__(self,
@@ -61,25 +225,21 @@ class HomePageDashboardView(BaseViewModule):
             parent=parent
         )
 
-        # Initialize API clients - placeholders for now
-        # self.weather_service = WeatherService(api_key=self.config.get("WEATHER_API_KEY"))
-        # self.forex_service = ForexService(api_key=self.config.get("FOREX_API_KEY"))
-        # self.commodity_service = CommodityService(api_key=self.config.get("COMMODITY_API_KEY"))
-        # self.crypto_service = CryptoService() # Assuming it doesn't need API key for BTC
+        self.thread_pool = QThreadPool() # Initialize QThreadPool
+        self.logger.info(f"QThreadPool initialized. Max threads: {self.thread_pool.maxThreadCount()}")
+
+        self.weather_cards: Dict[str, WeatherCardWidget] = {} # For new weather cards
 
         self._init_ui()
-        self.load_module_data() # Initial data load
+        self.load_module_data()
 
-        # Setup QTimer for periodic refresh
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self._refresh_all_data)
         
-        # Get refresh interval from config or use default (1 hour = 3600 * 1000 ms)
-        # Note: self.config is available from BaseViewModule's __init__
-        refresh_interval_ms = 3600 * 1000 # Default to 1 hour
+        refresh_interval_ms = 3600 * 1000
         if self.config and hasattr(self.config, 'get') and callable(self.config.get):
             refresh_interval_ms = self.config.get("DASHBOARD_REFRESH_INTERVAL_MS", refresh_interval_ms)
-        elif isinstance(self.config, dict): # Fallback if config is a dict but no .get method (less likely)
+        elif isinstance(self.config, dict):
              refresh_interval_ms = self.config.get("DASHBOARD_REFRESH_INTERVAL_MS", refresh_interval_ms)
         else:
             self.logger.warning("Config object not available or 'get' method missing; using default refresh interval.")
@@ -88,55 +248,53 @@ class HomePageDashboardView(BaseViewModule):
         self.logger.info(f"Dashboard refresh timer started with interval: {refresh_interval_ms / 1000 / 60:.2f} minutes.")
 
     def _init_ui(self):
-        """Initialize the user interface of the dashboard."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15) # Increased margins
-        main_layout.setSpacing(25) # Increased spacing
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(25)
 
-        # --- Title ---
         title_label = QLabel(self.MODULE_DISPLAY_NAME)
-        title_font = QFont("Arial", 18, QFont.Weight.Bold) # Larger title font
+        title_font = QFont("Arial", 18, QFont.Weight.Bold)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
 
-        # --- Main Grid for Sections (2 columns) ---
         grid_layout = QGridLayout()
         grid_layout.setSpacing(20)
 
         # --- Weather Section ---
         weather_frame = QFrame()
         weather_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        weather_frame.setObjectName("DashboardSectionFrame") # For styling
+        weather_frame.setObjectName("DashboardSectionFrame")
         weather_layout = QVBoxLayout(weather_frame)
         
         weather_title = QLabel("🌦️ Current Weather")
-        weather_title.setFont(QFont("Arial", 14, QFont.Weight.Bold)) # Section title font
+        weather_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         weather_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         weather_layout.addWidget(weather_title)
 
         self.weather_grid_layout = QGridLayout()
         self.weather_grid_layout.setSpacing(10)
         
-        self.weather_labels: Dict[str, QLabel] = {}
+        # Create WeatherCardWidgets
         for i, city_info in enumerate(CITIES_DETAILS):
-            label = QLabel(f"{city_info['display_name']}: Fetching...")
-            label.setFont(QFont("Arial", 10))
-            self.weather_grid_layout.addWidget(label, i // 2, i % 2) # 2 cities per row
-            self.weather_labels[city_info['key']] = label
+            city_key = city_info['key']
+            card = WeatherCardWidget()
+            card.set_status_fetching(city_info['display_name']) # Initial status
+            self.weather_grid_layout.addWidget(card, i // 2, i % 2) # 2 cards per row
+            self.weather_cards[city_key] = card
         
         weather_layout.addLayout(self.weather_grid_layout)
-        weather_layout.addStretch() # Pushes content to top
-        grid_layout.addWidget(weather_frame, 0, 0) # Add to main grid
+        weather_layout.addStretch()
+        grid_layout.addWidget(weather_frame, 0, 0)
 
-        # --- Financial Trends Section ---
+        # --- Financial Trends Section (remains the same for now) ---
         financial_frame = QFrame()
         financial_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        financial_frame.setObjectName("DashboardSectionFrame") # For styling
+        financial_frame.setObjectName("DashboardSectionFrame")
         financial_layout = QVBoxLayout(financial_frame)
 
         financial_title = QLabel("💹 Market Trends (Weekly)")
-        financial_title.setFont(QFont("Arial", 14, QFont.Weight.Bold)) # Section title font
+        financial_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         financial_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         financial_layout.addWidget(financial_title)
 
@@ -152,13 +310,12 @@ class HomePageDashboardView(BaseViewModule):
         self.btc_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium))
         financial_layout.addWidget(self.btc_price_label)
         
-        financial_layout.addStretch() # Pushes content to top
-        grid_layout.addWidget(financial_frame, 0, 1) # Add to main grid
+        financial_layout.addStretch()
+        grid_layout.addWidget(financial_frame, 0, 1)
 
         main_layout.addLayout(grid_layout)
-        main_layout.addStretch() # Pushes sections to top
+        main_layout.addStretch()
 
-        # Example of how to apply a common stylesheet (can be expanded)
         self.setStyleSheet("""
             #DashboardSectionFrame {
                 background-color: #f8f9fa;
@@ -167,98 +324,132 @@ class HomePageDashboardView(BaseViewModule):
                 padding: 15px;
             }
             QLabel {
-                color: #343a40; /* Darker text for better readability */
+                color: #343a40;
             }
         """)
 
     def load_module_data(self):
-        """
-        Loads or triggers the loading of data for the dashboard widgets.
-        """
         self.logger.info(f"'{self.MODULE_DISPLAY_NAME}' module data loading initiated.")
         self._update_status("Data loading initiated...")
-
-        # Fetch weather data
-        # TODO: Consider running network calls in a separate thread using self.thread_pool
-        # from app.core.threading import Worker
-        # worker = Worker(self._fetch_weather_data)
-        # worker.signals.finished.connect(lambda: self.logger.info("Weather fetch thread finished.")) # Example
-        # self.thread_pool.start(worker) # Assuming self.thread_pool is initialized in BaseViewModule or here
         self._fetch_weather_data()
         self._fetch_forex_data()
         self._fetch_crypto_prices()
         self._fetch_commodity_prices()
 
     def _refresh_all_data(self):
-        """Slot for the QTimer to refresh all dashboard data."""
         self.logger.info("Timer triggered: Refreshing all dashboard data...")
         self._update_status("Refreshing data (timer)...")
-        
-        # Call all individual data fetching methods
-        # TODO: Consider if these fetches should be done in separate threads
-        # if they become too time-consuming and block the UI.
         self._fetch_weather_data()
         self._fetch_forex_data()
         self._fetch_crypto_prices()
-        self._fetch_commodity_prices() # This will just update to N/A as per current implementation
-        
+        self._fetch_commodity_prices()
         self._update_status("Dashboard data refreshed (timer).")
 
-    def _fetch_weather_data(self):
-        self.logger.info("Fetching weather data...")
+    # --- Weather Data Handling ---
+    def _fetch_weather_for_city_worker(self, city_key: str, city_query: str, display_name: str) -> Dict[str, Any]:
+        """Fetches and processes weather data for a single city."""
+        self.logger.info(f"Fetching weather for {display_name} ({city_key}) via worker...")
+        try:
+            url = f"{OPENWEATHERMAP_BASE_URL}?q={city_query}&appid={OPENWEATHERMAP_API_KEY}&units=metric"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
 
-        if OPENWEATHERMAP_API_KEY == "YOUR_API_KEY_HERE":
+            if data.get("cod") != 200:
+                error_message = data.get("message", "Unknown API error")
+                self.logger.error(f"API error for {display_name}: {error_message}")
+                raise Exception(f"API Error: {error_message}") # Worker will catch and emit this
+
+            temp = data.get('main', {}).get('temp')
+            condition = data.get('weather', [{}])[0].get('description', 'N/A')
+            icon_code = data.get('weather', [{}])[0].get('icon', None)
+
+            if temp is None:
+                raise ValueError("Temperature data not found in API response.")
+
+            return {'key': city_key, 'name': display_name, 'temp': temp, 'condition': condition, 'icon': icon_code}
+
+        except requests.exceptions.Timeout as e:
+            self.logger.error(f"Timeout fetching weather for {display_name}: {e}")
+            raise # Re-raise for worker to catch
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"RequestException for {display_name}: {e}")
+            raise
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSONDecodeError for {display_name}: {e}")
+            raise
+        except Exception as e: # Catch any other unexpected errors
+            self.logger.error(f"Unexpected error in _fetch_weather_for_city_worker for {display_name}: {e}")
+            raise
+
+
+    def _fetch_weather_data(self):
+        self.logger.info("Initiating fetch for all weather data...")
+        self._update_status("Fetching all weather data...")
+
+        if OPENWEATHERMAP_API_KEY == "YOUR_API_KEY_HERE" or not OPENWEATHERMAP_API_KEY:
             self.logger.warning("OpenWeatherMap API key is not set. Weather data will not be fetched.")
             for city_info in CITIES_DETAILS:
-                if city_info['key'] in self.weather_labels:
-                    self.weather_labels[city_info['key']].setText(f"{city_info['display_name']}: API Key Required")
+                card = self.weather_cards.get(city_info['key'])
+                if card:
+                    card.set_status_error(city_info['display_name'], "API Key Not Configured", True)
             self._update_status("Weather: API Key Required")
             return
 
         for city_info in CITIES_DETAILS:
             city_key = city_info['key']
-            city_display_name = city_info['display_name']
             city_query = city_info['query']
+            display_name = city_info['display_name']
             
-            if city_key not in self.weather_labels:
-                self.logger.warning(f"Label for city key '{city_key}' not found.")
+            card = self.weather_cards.get(city_key)
+            if not card:
+                self.logger.error(f"Weather card for city key '{city_key}' not found.")
                 continue
 
-            try:
-                url = f"{OPENWEATHERMAP_BASE_URL}?q={city_query}&appid={OPENWEATHERMAP_API_KEY}&units=metric"
-                response = requests.get(url, timeout=10) # Added timeout
-                response.raise_for_status()  # Raises HTTPError for bad responses (4XX or 5XX)
+            card.set_status_fetching(display_name)
 
-                data = response.json()
+            # Pass city_key to worker for error signal context
+            worker = Worker(self._fetch_weather_for_city_worker, city_key=city_key, city_query=city_query, display_name=display_name)
+            worker.signals.result.connect(self._on_weather_data_received)
+            worker.signals.error.connect(self._on_weather_data_error)
+            self.thread_pool.start(worker)
 
-                if data.get("cod") != 200: # Check OpenWeatherMap specific error code
-                    error_message = data.get("message", "Unknown API error")
-                    self.logger.error(f"Error fetching weather for {city_display_name} from API: {error_message}")
-                    self.weather_labels[city_key].setText(f"{city_display_name}: API Error")
-                    continue
+    def _on_weather_data_received(self, result: dict):
+        city_key = result.get('key')
+        self.logger.info(f"Weather data received for city: {result.get('name', city_key)}")
+        card = self.weather_cards.get(city_key)
+        if card:
+            card.update_data(
+                city_name=result['name'],
+                temp=result['temp'],
+                condition=result['condition'],
+                icon_code=result.get('icon')
+            )
+        else:
+            self.logger.warning(f"Received weather data for unknown city key: {city_key}")
 
-                temp = data.get('main', {}).get('temp')
-                condition = data.get('weather', [{}])[0].get('description', 'N/A')
-                
-                if temp is not None:
-                    self.weather_labels[city_key].setText(f"{city_display_name}: {temp:.1f}°C, {condition.capitalize()}")
-                else:
-                    self.weather_labels[city_key].setText(f"{city_display_name}: Data N/A")
-                
-            except requests.exceptions.Timeout:
-                self.logger.error(f"Timeout fetching weather for {city_display_name}.")
-                self.weather_labels[city_key].setText(f"{city_display_name}: Timeout")
-            except requests.exceptions.RequestException as e:
-                self.logger.error(f"Error fetching weather for {city_display_name}: {e}", exc_info=True)
-                self.weather_labels[city_key].setText(f"{city_display_name}: Network Error")
-            except json.JSONDecodeError:
-                self.logger.error(f"Error decoding JSON response for {city_display_name}.")
-                self.weather_labels[city_key].setText(f"{city_display_name}: Data Error")
-            except Exception as e:
-                self.logger.error(f"Unexpected error processing weather for {city_display_name}: {e}", exc_info=True)
-                self.weather_labels[city_key].setText(f"{city_display_name}: Error")
+    def _on_weather_data_error(self, error_info: tuple):
+        # error_info is (city_key, exc_type, exception, traceback_str)
+        city_key, exc_type, error_val, tb_str = error_info
         
-        self._update_status("Weather data fetch attempt complete.")
+        # Try to get display name for the error message
+        city_display_name = city_key # Fallback to key if name not found
+        for city_detail in CITIES_DETAILS:
+            if city_detail['key'] == city_key:
+                city_display_name = city_detail['display_name']
+                break
+
+        self.logger.error(f"Error fetching weather for {city_display_name} ({city_key}): {exc_type.__name__} - {error_val}\nTrace: {tb_str}")
+        card = self.weather_cards.get(city_key)
+        if card:
+            card.set_status_error(city_display_name, str(error_val), False) # is_api_key_error is False for general errors
+        else:
+            self.logger.warning(f"Error received for unknown weather city key: {city_key}")
+
+
+    # --- Other Data Fetching Methods (Forex, Commodity, Crypto) ---
+    # These remain largely unchanged for now, but could be refactored similarly
+    # to use threaded workers if they become too slow.
 
     def _fetch_forex_data(self):
         self.logger.info("Fetching USD-CAD forex data...")
@@ -273,7 +464,6 @@ class HomePageDashboardView(BaseViewModule):
         current_rate: Optional[float] = None
         historical_rate: Optional[float] = None
 
-        # Fetch current rate
         try:
             url_latest = f"{EXCHANGERATE_BASE_URL}{EXCHANGERATE_API_KEY}/latest/USD"
             response_latest = requests.get(url_latest, timeout=10)
@@ -295,7 +485,6 @@ class HomePageDashboardView(BaseViewModule):
             self.logger.error(f"Unexpected error fetching latest USD-CAD rate: {e}", exc_info=True)
 
 
-        # Fetch historical rate (7 days ago)
         try:
             date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
             url_historical = f"{EXCHANGERATE_BASE_URL}{EXCHANGERATE_API_KEY}/history/USD/{date_7_days_ago.year}/{date_7_days_ago.month}/{date_7_days_ago.day}"
@@ -317,14 +506,13 @@ class HomePageDashboardView(BaseViewModule):
         except Exception as e:
              self.logger.error(f"Unexpected error fetching historical USD-CAD rate: {e}", exc_info=True)
 
-        # Update label
         if current_rate is not None and historical_rate is not None:
             if current_rate > historical_rate:
-                trend_arrow = "↑"  # Up
+                trend_arrow = "↑"
             elif current_rate < historical_rate:
-                trend_arrow = "↓"  # Down
+                trend_arrow = "↓"
             else:
-                trend_arrow = "→"  # Stable
+                trend_arrow = "→"
             self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} {trend_arrow}")
         elif current_rate is not None:
             self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A)")
@@ -335,12 +523,6 @@ class HomePageDashboardView(BaseViewModule):
 
     def _fetch_commodity_prices(self):
         self.logger.info("Attempting to fetch commodity prices (e.g., Canola)...")
-        # TODO: Integrate a real Canola price API.
-        # Finding a free, reliable public API for daily/weekly Canola spot/futures prices
-        # is challenging. A dedicated agricultural data provider or a financial markets API
-        # with commodity coverage (often paid) would likely be required.
-        # For now, we are indicating that the data is not available.
-        
         self.canola_price_label.setText("🌾 Canola: Price Data N/A")
         self.logger.info("Canola price data is not integrated due to lack of a readily available free public API.")
         self._update_status("Canola Price: Data N/A")
@@ -352,7 +534,6 @@ class HomePageDashboardView(BaseViewModule):
         current_btc_price: Optional[float] = None
         historical_btc_price: Optional[float] = None
 
-        # Fetch current BTC price
         try:
             url_current_btc = f"{COINGECKO_BASE_URL}simple/price?ids=bitcoin&vs_currencies=usd"
             response_current_btc = requests.get(url_current_btc, timeout=10)
@@ -372,10 +553,8 @@ class HomePageDashboardView(BaseViewModule):
         except Exception as e:
             self.logger.error(f"Unexpected error fetching current BTC price: {e}", exc_info=True)
 
-        # Fetch historical BTC price (7 days ago)
         try:
             date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
-            # CoinGecko API uses dd-mm-yyyy format for historical data
             formatted_date_7_days_ago = date_7_days_ago.strftime('%d-%m-%Y')
             
             url_historical_btc = f"{COINGECKO_BASE_URL}coins/bitcoin/history?date={formatted_date_7_days_ago}&localization=false"
@@ -398,7 +577,6 @@ class HomePageDashboardView(BaseViewModule):
         except Exception as e:
             self.logger.error(f"Unexpected error fetching historical BTC price: {e}", exc_info=True)
             
-        # Update label
         if current_btc_price is not None and historical_btc_price is not None:
             if current_btc_price > historical_btc_price:
                 trend_arrow = "↑"
@@ -415,89 +593,67 @@ class HomePageDashboardView(BaseViewModule):
         self._update_status("BTC price data fetch attempt complete.")
 
     def get_icon_name(self) -> str:
-        """Returns the icon filename for this module."""
-        return "home_dashboard_icon.png" # Or "gauge.svg" / "dashboard.svg" etc.
+        return "home_dashboard_icon.png"
 
     def _update_status(self, message: str):
-        """Helper to update a status bar, if available from main_window."""
         if hasattr(self.main_window, 'statusBar') and callable(getattr(self.main_window, 'statusBar')):
             try:
-                self.main_window.statusBar().showMessage(f"{self.MODULE_DISPLAY_NAME}: {message}", 5000) # Show for 5 seconds
+                self.main_window.statusBar().showMessage(f"{self.MODULE_DISPLAY_NAME}: {message}", 5000)
             except Exception as e:
                 self.logger.debug(f"Could not update status bar: {e}")
         self.logger.info(message)
 
 if __name__ == '__main__':
-    # This part is for testing the module independently
     from PyQt6.QtWidgets import QApplication
     import sys
 
-    # Minimalistic BaseViewModule for testing
     class MinimalBaseViewModule(QWidget):
         def __init__(self, parent=None):
             super().__init__(parent)
-            self.config = {} # Minimal config
+            self.config = {}
             self.logger = logging.getLogger("TestLogger")
             logging.basicConfig(level=logging.INFO)
-            self.main_window = self # Mock main_window
+            self.main_window = self
 
-        def statusBar(self): # Mock statusBar
+        def statusBar(self):
             class MockStatusBar:
                 def showMessage(self, msg, timeout):
                     self.logger.info(f"Status: {msg} (timeout {timeout})")
             return MockStatusBar()
     
-    BaseViewModule.__bases__ = (MinimalBaseViewModule,) # Temporarily rebase for testing
+    BaseViewModule.__bases__ = (MinimalBaseViewModule,)
 
     app = QApplication(sys.argv)
     
-    # Create a dummy main window for context if your module expects one
-    # Or pass None if it can handle it. For this test, HomePageDashboardView
-    # is the main widget being shown.
-    
-    # Mock config and logger
     test_config = {"WEATHER_API_KEY": "test_weather_key", "FOREX_API_KEY": "test_forex_key"}
     test_logger = logging.getLogger("DashboardTest")
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-    # Instantiate the dashboard view
-    # dashboard = HomePageDashboardView(config=test_config, logger_instance=test_logger, main_window=None)
-    
-    # For the test, we need a main window that can provide a status bar if _update_status is called.
-    # Let's create a simple QMainWindow for testing.
-    class TestMainWindow(QWidget): # Changed to QWidget to avoid QMainWindow specific features unless needed
+    class TestMainWindow(QWidget):
         def __init__(self):
             super().__init__()
             self.setWindowTitle("Test Dashboard Container")
             self.layout = QVBoxLayout(self)
+            # Ensure QThreadPool is available globally or passed if needed by Worker
+            # For this test, globalInstance should be fine.
             self.dashboard_view = HomePageDashboardView(
                 config=test_config, 
                 logger_instance=test_logger, 
-                main_window=self # Pass self as main_window
+                main_window=self
             )
             self.layout.addWidget(self.dashboard_view)
-            self._status_bar = QLabel("Status bar placeholder") # Mock status bar
+            self._status_bar = QLabel("Status bar placeholder")
             self.layout.addWidget(self._status_bar)
             self.resize(800, 600)
 
-        def statusBar(self): # Mock method
+        def statusBar(self):
             class MockStatusBar:
                 def __init__(self, label):
                     self.label = label
                 def showMessage(self, message, timeout=0):
                     self.label.setText(message)
-                    print(f"Status: {message} (timeout {timeout})") # Also print to console
+                    print(f"Status: {message} (timeout {timeout})")
             return MockStatusBar(self._status_bar)
-
-
-    # If BaseViewModule is QWidget based, it can be a top-level window
-    # If it's QFrame or similar, it needs to be hosted.
-    # Assuming BaseViewModule (and thus HomePageDashboardView) is a QWidget.
-    
-    # dashboard = HomePageDashboardView(config=test_config, logger_instance=test_logger, main_window=None)
-    # dashboard.setWindowTitle("Home Dashboard Test")
-    # dashboard.resize(800, 600)
-    # dashboard.show()
 
     main_win = TestMainWindow()
     main_win.show()
