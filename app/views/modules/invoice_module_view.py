@@ -139,19 +139,19 @@ class InvoiceModuleView(BaseViewModule):
         equipment_group.setLayout(equipment_layout)
         main_layout.addWidget(equipment_group)
 
-        # # Trade-ins section
-        # tradein_group = QGroupBox("Trade-ins")
-        # tradein_layout = QVBoxLayout()
+        # Trade-ins section
+        tradein_group = QGroupBox("Trade-ins")
+        tradein_layout = QVBoxLayout()
 
-        # self.tradein_table = QTableWidget(0, 3)  # rows, columns
-        # self.tradein_table.setHorizontalHeaderLabels(["Model", "Serial #", "Value"])
-        # self.tradein_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        # self.tradein_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        # self.tradein_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.tradein_table = QTableWidget(0, 3)  # Assuming 3 columns: Model, Serial #, Value
+        self.tradein_table.setHorizontalHeaderLabels(["Model", "Serial #", "Value"])
+        self.tradein_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tradein_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tradein_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
 
-        # tradein_layout.addWidget(self.tradein_table)
-        # tradein_group.setLayout(tradein_layout)
-        # main_layout.addWidget(tradein_group)
+        tradein_layout.addWidget(self.tradein_table)
+        tradein_group.setLayout(tradein_layout)
+        main_layout.addWidget(tradein_group)
 
         # # Notes section
         # notes_group = QGroupBox("Notes")
