@@ -89,8 +89,9 @@ class InvoiceModuleView(BaseViewModule):
         self.logger.debug(f"InvoiceModuleView._init_ui called for instance {id(self)}")
         print("DEBUG: In InvoiceModuleView._init_ui - BEFORE main layout command")
         main_layout = QVBoxLayout()
+        print(f"DEBUG: InvoiceModuleView _init_ui - About to call self.setLayout. Type of self: {{type(self)}}, id(self.logger): {{id(self.logger) if self.logger else 'None'}}")
         self.setLayout(main_layout)
-        print(f"DEBUG: In InvoiceModuleView._init_ui - AFTER main layout command. self.layout() is {{self.layout()}}")
+        print(f"DEBUG: InvoiceModuleView _init_ui - Returned from self.setLayout. self.layout() is {{self.layout()}}")
         main_layout.setContentsMargins(10, 10, 10, 10)
         
         # --- Simplified Title (from previous step, can be kept or removed for this test) ---
@@ -287,9 +288,14 @@ class InvoiceModuleView(BaseViewModule):
         
         # Create a wrapper function that handles the parameters properly
         def get_quote_details_wrapper(*args, **kwargs):
-            # Ignore the status_callback parameter that Worker automatically adds
-            return self.jd_quote_service.get_quote_details_via_api(
-                self.current_quote_id, self.current_dealer_account_no)
+            # This function is run in a separate thread by Worker
+            # self.jd_quote_service is JDQuoteIntegrationService
+            coro = self.jd_quote_service.get_quote_details_via_api(
+                self.current_quote_id, self.current_dealer_account_no
+            )
+            # Ensure asyncio is imported in this file if not already
+            import asyncio
+            return asyncio.run(coro)
         
         # Fetch quote details in background thread
         worker = Worker(get_quote_details_wrapper)
