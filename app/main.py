@@ -63,6 +63,10 @@ from app.views.modules.csv_editors_manager_view import CsvEditorsManagerView
 from app.views.modules.jd_external_quote_view import JDExternalQuoteView
 from app.views.modules.invoice_module_view import InvoiceModuleView
 
+# Settings Panels
+from app.views.settings_panels.app_settings_view import AppSettingsView
+# from app.views.settings_panels.jd_auth_settings_view import JDAuthSettingsView # If needed later
+
 # Main Window and Splash Screen
 from app.views.main_window.splash_screen_view import SplashScreenView
 
@@ -443,7 +447,8 @@ class MainWindow(QMainWindow):
                ("csv_editors", self._create_csv_editors_view, "Data Editors"),
                 # ("calculator", self._create_calculator_view, "Calculator"), # Removed
                 ("jd_quote", self._create_jd_quote_view, "JD External Quote"), # module_key is "jd_quote"
-               ("invoice", self._create_invoice_view, "Invoice")
+               ("invoice", self._create_invoice_view, "Invoice"),
+               ("app_settings", self._create_app_settings_view, "App Settings") # Added App Settings
            ]
            
            loaded_modules = 0
@@ -495,7 +500,8 @@ class MainWindow(QMainWindow):
            "home_dashboard_icon.png", # Added Home Dashboard icon
            "new_deal_icon.png", "recent_deals_icon.png", "price_book_icon.png",
            "used_inventory_icon.png", "receiving_icon.png", "data_editors_icon.png",
-           "calculator_icon.png", "jd_quote_icon.png", "invoice_icon.png"
+           "calculator_icon.png", "jd_quote_icon.png", "invoice_icon.png",
+           "settings_icon.png" # Added icon for settings
        ]
        
        for icon_file in known_icon_files:
@@ -637,6 +643,18 @@ class MainWindow(QMainWindow):
            )
        except Exception as e:
            self.logger.error(f"Failed to create HomePageDashboardView: {e}", exc_info=True)
+           return None
+
+   def _create_app_settings_view(self) -> Optional[AppSettingsView]:
+       """Create App Settings view with error handling"""
+       try:
+           return AppSettingsView(
+               config=self.config,
+               theme_manager=self.theme_manager # Pass the theme_manager
+               # logger_instance can be passed if AppSettingsView is modified to accept it
+           )
+       except Exception as e:
+           self.logger.error(f"Failed to create AppSettingsView: {e}", exc_info=True)
            return None
 
    def _set_default_view(self):

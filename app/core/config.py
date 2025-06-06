@@ -158,6 +158,22 @@ class BRIDealConfig(BaseSettings):
     mock_apis: bool = Field(default=False, description="Use mock APIs for development")
     auto_reload: bool = Field(default=False, description="Auto-reload on code changes")
 
+    # Dashboard
+    DASHBOARD_REFRESH_INTERVAL_MS: Optional[int] = Field(
+        default=3600000,
+        description="Dashboard refresh interval in milliseconds (e.g., 1 hour = 3600000)"
+    )
+
+    # External API Keys
+    OPENWEATHERMAP_API_KEY: Optional[str] = Field(
+        default="YOUR_API_KEY_HERE",
+        description="API key for OpenWeatherMap service."
+    )
+    EXCHANGERATE_API_KEY: Optional[str] = Field(
+        default="YOUR_API_KEY_HERE",
+        description="API key for ExchangeRate-API service."
+    )
+
     # Application Specific Settings
     invoice_tax_rate: float = Field(
         default=0.07,

@@ -25,6 +25,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont, QIcon, QDoubleValidator, QPixmap
 
+# Import for logging completed deals
+from app.views.modules.recent_deals_view import _save_deal_to_recent_enhanced
+
 
 class WorkerSignals(QObject):
     result = pyqtSignal(object)
@@ -1297,6 +1300,11 @@ class DealFormView(QWidget):
         try:
             with open(file_name, 'w', newline='', encoding='utf-8-sig') as f: f.write(csv_data_string)
             self.logger.info(f"CSV saved locally: {file_name}"); self._show_status_message(f"CSV saved: {os.path.basename(file_name)}", 5000)
+
+            # Log deal completion for CSV
+            current_deal_data = self._get_current_deal_data()
+            _save_deal_to_recent_enhanced(current_deal_data, csv_generated=True, email_generated=False,
+                                          data_path=self._data_path, config=self.config, logger_instance=self.logger)
             return True
         except Exception as e: self.logger.error(f"Error saving CSV locally: {e}", exc_info=True); QMessageBox.critical(self, "Save Error", f"Could not save CSV:\n{e}"); return False
 
@@ -1440,6 +1448,11 @@ class DealFormView(QWidget):
 
             self.logger.info(f"Successfully initiated mailto link for customer: {customer_name_text}. Recipients: {', '.join(valid_recipients)}")
             self._show_status_message("Email client should be open.", 3000)
+
+            # Log deal completion for Email
+            current_deal_data = self._get_current_deal_data()
+            _save_deal_to_recent_enhanced(current_deal_data, csv_generated=False, email_generated=True,
+                                          data_path=self._data_path, config=self.config, logger_instance=self.logger)
             return True
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during email generation: {e}", exc_info=True)
@@ -1458,8 +1471,21 @@ class DealFormView(QWidget):
         email_ok = False
         if csv_ok: email_ok = self.generate_email()
         else: self.logger.warning("CSV generation failed, skipping email.")
-        if csv_ok and email_ok: self._show_status_message("'Generate All': CSV and Email processes completed.", 5000)
+        if csv_ok and email_ok:
+            self._show_status_message("'Generate All': CSV and Email processes completed.", 5000)
+            # Note: _save_deal_to_recent_enhanced is called by generate_csv_action and generate_email.
+            # For "Generate All", the last call (from generate_email) will effectively set email_generated=True.
+            # If CSV was also generated, its flag from the earlier call might be overwritten if the unique identifier (e.g. timestamp) is too similar.
+            # A more robust approach would be to have generate_csv_action and generate_email return their success state
+            # and then call _save_deal_to_recent_enhanced once here with both flags.
+            # However, given current structure of _save_deal_to_recent_enhanced (prepends), this is acceptable for now.
+            # To ensure both flags are true if both actions succeeded:
+            current_deal_data = self._get_current_deal_data()
+            _save_deal_to_recent_enhanced(current_deal_data, csv_generated=True, email_generated=True,
+                                          data_path=self._data_path, config=self.config, logger_instance=self.logger)
+
         elif csv_ok: self._show_status_message("'Generate All': CSV done. Check email status.", 4000)
+        # If only email_ok, it's already logged by generate_email.
 
     def reset_form_no_confirm(self):
         self.customer_name.clear(); self.salesperson.clear()

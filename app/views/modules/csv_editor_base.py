@@ -66,21 +66,26 @@ class CsvEditorBase(BaseViewModule):
         self._last_change_time: float = 0.0 # Initialize _last_change_time
 
         if hasattr(self.main_window, 'sharepoint_manager_service'):
-            original_sp_manager: Optional[object] = getattr(self.main_window, 'sharepoint_manager_service', None)
+            original_sp_manager = getattr(self.main_window, 'sharepoint_manager_service', None)
             if original_sp_manager:
-                self.sharepoint_manager = original_sp_manager
-                if hasattr(original_sp_manager, 'download_file_content_enhanced'):
-                    self.enhanced_sharepoint_manager = original_sp_manager
-                    self.logger.info("Using provided sharepoint_manager_service as enhanced manager.")
-                elif EnhancedSharePointManager:
-                    self.logger.info("Wrapping provided sharepoint_manager_service with EnhancedSharePointManager.")
+                if EnhancedSharePointManager: # Class imported from deal_form_view
+                    self.logger.info("Wrapping provided sharepoint_manager_service with EnhancedSharePointManager for CsvEditorBase.")
                     self.enhanced_sharepoint_manager = EnhancedSharePointManager(original_sp_manager, self.logger)
+                    # self.sharepoint_manager can still point to the original if needed for other basic calls,
+                    # but downloads should go through self.enhanced_sharepoint_manager.
+                    self.sharepoint_manager = original_sp_manager
                 else:
-                    self.logger.warning("EnhancedSharePointManager not available. Using basic SharePoint manager for downloads.")
+                    self.logger.warning("EnhancedSharePointManager class not available. Falling back to basic SharePoint manager for CsvEditorBase.")
+                    self.sharepoint_manager = original_sp_manager
+                    self.enhanced_sharepoint_manager = None # Ensure it's None if class isn't available
             else:
-                self.logger.warning("main_window.sharepoint_manager_service is None.")
+                self.logger.warning("main_window.sharepoint_manager_service is None. SharePoint functionality will be limited in CsvEditorBase.")
+                self.sharepoint_manager = None
+                self.enhanced_sharepoint_manager = None
         else:
-            self.logger.warning("main_window does not have sharepoint_manager_service attribute.")
+            self.logger.warning("main_window does not have sharepoint_manager_service attribute. SharePoint functionality will be limited in CsvEditorBase.")
+            self.sharepoint_manager = None
+            self.enhanced_sharepoint_manager = None
 
         print("DEBUG: In CsvEditorBase.__init__ - BEFORE self._set_sharepoint_url()")
         self._set_sharepoint_url()
@@ -240,7 +245,7 @@ class CsvEditorBase(BaseViewModule):
         header = self.table.horizontalHeader()
         # MODIFICATION START
         v_header = self.table.verticalHeader()
-        v_header.setDefaultSectionSize(30) # Adjust default row height
+        v_header.setDefaultSectionSize(35) # Adjust default row height to 35
         v_header.setStyleSheet("QHeaderView::section { padding-left: 5px; padding-right: 5px; }") # Add padding to row numbers
         # MODIFICATION END
         header.setStretchLastSection(True)
@@ -346,24 +351,29 @@ class CsvEditorBase(BaseViewModule):
     def _fetch_from_sharepoint(self):
         csv_content = None
         try:
-            if self.enhanced_sharepoint_manager and hasattr(self.enhanced_sharepoint_manager, 'download_file_content_enhanced'):
-                self.logger.info(f"Attempting download via enhanced_sharepoint_manager for: {self.sharepoint_file_url}")
-                csv_content = self.enhanced_sharepoint_manager.download_file_content_enhanced(self.sharepoint_file_url)
-            elif self.sharepoint_manager and hasattr(self.sharepoint_manager, 'download_file_content'):
-                self.logger.warning(f"Attempting download via basic sharepoint_manager for: {self.sharepoint_file_url}. This might fail for direct URLs if token is Graph API scoped.")
+            if self.enhanced_sharepoint_manager and hasattr(self.enhanced_sharepoint_manager, 'download_file_content'):
+                self.logger.info(f"Attempting download via EnhancedSharePointManager.download_file_content() for: {self.sharepoint_file_url}")
+                csv_content = self.enhanced_sharepoint_manager.download_file_content(self.sharepoint_file_url)
+            elif self.sharepoint_manager and hasattr(self.sharepoint_manager, 'download_file_content'): # Fallback to original manager
+                self.logger.warning(f"Falling back to basic sharepoint_manager.download_file_content() for: {self.sharepoint_file_url}. This might fail for direct URLs if token is Graph API scoped.")
                 csv_content = self.sharepoint_manager.download_file_content(self.sharepoint_file_url)
             else:
-                raise Exception("No suitable SharePoint manager available for download.")
+                raise Exception("No suitable SharePoint manager or download method available.")
 
             if csv_content:
-                df = pd.read_csv(io.StringIO(csv_content))
-                return df
+                # Ensure correct header handling for CSVs with BOM
+                try:
+                    df = pd.read_csv(io.StringIO(csv_content), encoding='utf-8-sig', dtype=str)
+                except Exception as pd_err:
+                    self.logger.error(f"Pandas CSV parsing error after download with utf-8-sig: {pd_err}", exc_info=True)
+                    self.logger.info("Attempting fallback ISO-8859-1 encoding for CSV parsing.")
+                    df = pd.read_csv(io.StringIO(csv_content), encoding='iso-8859-1', dtype=str)
+                return df.fillna('') # Ensure NaN are empty strings
             else:
                 raise Exception(f"No content received from SharePoint for URL: {self.sharepoint_file_url}")
-                
         except Exception as e:
-            self.logger.error(f"Error fetching from SharePoint: {e}", exc_info=True)
-            raise 
+            self.logger.error(f"Error during _fetch_from_sharepoint for {self.sharepoint_file_url}: {e}", exc_info=True)
+            raise
     
     def _sync_from_sharepoint_complete(self, df: pd.DataFrame):
         try:
