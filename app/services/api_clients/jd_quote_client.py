@@ -52,9 +52,7 @@ class JDQuoteApiClient:
     async def _get_headers(self) -> Dict[str, str]:
         """Get headers with authentication token"""
         try:
-            token = await asyncio.get_event_loop().run_in_executor(
-                None, self.auth_manager.get_access_token
-            )
+            token = await self.auth_manager.get_access_token()
             
             if not token:
                 raise BRIDealException(ErrorContext(
@@ -100,9 +98,7 @@ class JDQuoteApiClient:
                 if response.status == 401:
                     # Token might be expired, try to refresh
                     try:
-                        await asyncio.get_event_loop().run_in_executor(
-                            None, self.auth_manager.refresh_access_token
-                        )
+                        await self.auth_manager.refresh_access_token()
                         # Retry with new token
                         headers = await self._get_headers()
                         kwargs["headers"] = headers
