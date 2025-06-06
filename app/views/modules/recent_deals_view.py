@@ -358,13 +358,13 @@ class RecentDealsView(BaseViewModule):
                 
             # Apply status filter
             if filter_text == "CSV Generated Only":
-                if not deal.get('csv_generated', True):
+                if not deal.get('csv_generated', False):
                     continue
             elif filter_text == "Email Sent Only":
-                if not deal.get('email_generated', True):
+                if not deal.get('email_generated', False):
                     continue
             elif filter_text == "Both CSV & Email":
-                if not (deal.get('csv_generated', True) and deal.get('email_generated', True)):
+                if not (deal.get('csv_generated', False) and deal.get('email_generated', False)):
                     continue
             elif filter_text == "Last 7 Days":
                 deal_date = self._parse_deal_date(deal)

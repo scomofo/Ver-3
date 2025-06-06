@@ -440,6 +440,7 @@ class PriceBookView(BaseViewModule):
         header.setDefaultSectionSize(150)  # Default wider columns
         header.setMinimumSectionSize(100)  # Minimum width
         header.setSortIndicatorShown(True)
+        self.price_table.verticalHeader().setDefaultSectionSize(30) # Increase row height
         
         self.price_table.setStyleSheet("""
             QTableWidget {
