@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QApplication, QToolTip
 )
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QRunnable, QThreadPool
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtGui import QFont, QColor, QCursor # Added QCursor
 
 from app.views.modules.base_view_module import BaseViewModule
 # Placeholder for API clients or services if needed in the future
@@ -272,9 +272,10 @@ class WeatherCardWidget(QFrame):
             # Check if mouse is over the status_label area
             status_label_rect = self.status_label.geometry()
             # Map status_label_rect to WeatherCardWidget's coordinates
-            # This is a simplification; for precise hover on label, event filter on label is better
-            if status_label_rect.contains(event.pos()):
-                 QToolTip.showText(event.globalPos(), self.detailed_error_message, self, status_label_rect)
+            # Check if the cursor is over the status_label
+            local_pos = self.mapFromGlobal(QCursor.pos())
+            if self.status_label.geometry().contains(local_pos):
+                 QToolTip.showText(QCursor.pos(), self.detailed_error_message, self) # Use QCursor.pos()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
