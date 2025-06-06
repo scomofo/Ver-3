@@ -28,11 +28,21 @@ class ErrorContext:
     recovery_suggestions: Optional[list] = None
     timestamp: Optional[str] = None
 
+    def __str__(self) -> str:
+        details_str = f", details={self.details}" if self.details else ""
+        return (
+            f"ErrorContext(code='{self.code}', message='{self.message}', "
+            f"severity='{self.severity.value}', category='{self.category.value}'{details_str})"
+        )
+
 class BRIDealException(Exception):
     """Base exception for all BRIDeal-specific errors"""
     def __init__(self, context: ErrorContext):
         self.context = context
         super().__init__(context.message)
+
+    def __str__(self) -> str:
+        return str(self.context)
 
 class AuthenticationError(BRIDealException):
     """Authentication-related errors"""

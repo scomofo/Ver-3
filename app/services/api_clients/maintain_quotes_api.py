@@ -1,3 +1,4 @@
+# Resubmitting to ensure latest changes are propagated.
 # app/services/api_clients/maintain_quotes_api.py
 import logging
 from typing import Optional, Dict, Any
@@ -93,17 +94,17 @@ class MaintainQuotesAPI:
             logger.error("MaintainQuotesAPI: JDQuoteApiClient not available. Cannot get quote status.")
             return None
 
-        logger.info(f"MaintainQuotesAPI: Requesting status for external quote ID: {{external_quote_id}}")
+        logger.info(f"MaintainQuotesAPI: Requesting status for external quote ID: {external_quote_id}")
         try:
             response_result: Result[Dict, BRIDealException] = await self.jd_quote_api_client.get_quote_details(quote_id=external_quote_id) # Await here
             if response_result.is_success():
-                logger.info(f"MaintainQuotesAPI: Successfully retrieved status for quote {{external_quote_id}}.")
+                logger.info(f"MaintainQuotesAPI: Successfully retrieved status for quote {external_quote_id}.")
                 return response_result.value # Return the actual dictionary
             else:
-                logger.warning(f"MaintainQuotesAPI: Failed to get status for quote {{external_quote_id}}. Error: {{response_result.error}}")
+                logger.warning(f"MaintainQuotesAPI: Failed to get status for quote {external_quote_id}. Error type: {type(response_result.error)}, Error repr: {repr(response_result.error)}, Error str: {response_result.error}")
                 return None # Or an error dict: {"error": str(response_result.error)}
         except Exception as e:
-            logger.error(f"MaintainQuotesAPI: Exception while fetching external quote status for {{external_quote_id}}: {{e}}", exc_info=True)
+            logger.error(f"MaintainQuotesAPI: Exception while fetching external quote status for {external_quote_id}: {e}", exc_info=True)
             return None
 
     def update_quote_in_external_system(self, external_quote_id: str, update_payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
