@@ -4,6 +4,7 @@
 
 import logging
 import os
+import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QApplication, 
                              QLabel, QMessageBox, QPushButton, QHBoxLayout)
 from PyQt6.QtCore import Qt
@@ -244,6 +245,7 @@ class CsvEditorsManagerView(BaseViewModule):
         return "data_editors_icon.png" # Ensure this icon exists
 
     def _init_ui(self):
+        self.logger.debug(f"CsvEditorsManagerView._init_ui called for instance {id(self)}")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
@@ -290,7 +292,6 @@ class CsvEditorsManagerView(BaseViewModule):
         self.status_label = QLabel("Ready")
         self.status_label.setStyleSheet("color: #6c757d; font-size: 10pt; padding: 5px;")
         main_layout.addWidget(self.status_label)
-        self.setLayout(main_layout)
 
     def load_editors(self):
         if not self.config:

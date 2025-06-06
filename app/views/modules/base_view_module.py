@@ -1,5 +1,6 @@
 # BRIDeal_refactored/app/views/modules/base_view_module.py
 import logging
+import sys
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel # Added imports for basic functionality
 from PyQt6.QtCore import pyqtSignal, Qt # Added Qt for alignment example
 
@@ -56,6 +57,48 @@ class BaseViewModule(QWidget):
 
         self.logger.info(f"{self.module_name} initialized.")
 
+    def setLayout(self, new_layout):
+        print(f"PRINT_DIAG_SETLAYOUT_BASE_ENTRY: Instance {{id(self)}} of type {{type(self).__name__}} entered BaseViewModule.setLayout DIRECTLY. Logger is {{getattr(self, 'logger', 'NOT_FOUND')}}")
+        module_display_name = getattr(self, 'module_name', self.__class__.__name__)
+        instance_id = id(self)
+
+        # Unmissable print statements
+        print(f"PRINT_DIAG_SETLAYOUT_ENTRY: Class={module_display_name}, Instance={instance_id}, NewLayout={new_layout}")
+
+        logger_to_use = getattr(self, 'logger', logging.getLogger(module_display_name))
+
+        caller_name = "UnknownCaller"
+        caller_filename = "UnknownFile"
+        try:
+            caller_frame = sys._getframe(1)
+            caller_name = caller_frame.f_code.co_name
+            caller_filename = caller_frame.f_code.co_filename
+        except Exception as e:
+            logger_to_use.debug(f"Could not get caller frame for setLayout for {module_display_name} (instance {instance_id}): {e}")
+
+        existing_layout = self.layout()
+        log_prefix = f"DIAGNOSTIC_SETLAYOUT: Class={module_display_name}, Instance={instance_id}, Caller={caller_name} in {caller_filename}"
+
+        logger_to_use.info(f"{log_prefix} --- setLayout ENTRY --- NewLayout={new_layout}, ExistingLayout={existing_layout}")
+        print(f"PRINT_DIAG_SETLAYOUT_INFO: {log_prefix} --- ENTRY --- NewLayout={new_layout}, ExistingLayout={existing_layout}")
+
+
+        if existing_layout is not None:
+            if existing_layout == new_layout:
+                logger_to_use.info(f"{log_prefix} - INFO: Attempting to set the SAME layout object that is already set.")
+                print(f"PRINT_DIAG_SETLAYOUT_INFO: {log_prefix} - INFO: Setting SAME layout.")
+            else:
+                logger_to_use.warning(f"{log_prefix} - WARNING: ALREADY HAS A DIFFERENT LAYOUT ({existing_layout}). Attempting to set NewLayout: {new_layout}.")
+                print(f"PRINT_DIAG_SETLAYOUT_WARNING: {log_prefix} - WARNING: ALREADY HAS DIFFERENT LAYOUT.")
+        else:
+            logger_to_use.info(f"{log_prefix} - INFO: No existing layout. Setting new layout.")
+            print(f"PRINT_DIAG_SETLAYOUT_INFO: {log_prefix} - INFO: No existing layout.")
+
+        print(f"PRINT_DIAG_SETLAYOUT_BEFORE_SUPER: {log_prefix}. Current self.layout() is {self.layout()}. Calling super().setLayout({new_layout}).")
+        super().setLayout(new_layout)
+        print(f"PRINT_DIAG_SETLAYOUT_AFTER_SUPER: {log_prefix}. Current self.layout() is {self.layout()}.")
+        logger_to_use.info(f"{log_prefix} --- setLayout EXIT --- Layout_After_SuperCall={self.layout()}")
+
     # def _init_base_ui(self):
     #     """
     #     Optional: Initialize a very basic UI structure for the base module.
@@ -87,6 +130,12 @@ class BaseViewModule(QWidget):
         if not self.main_window:
             self.logger.warning("Main window reference requested but not available.")
         return self.main_window
+
+    def get_content_container(self) -> QWidget:
+        # Returns the widget itself as the primary container for content.
+        # Subclasses can override this if they have a more specific content area widget.
+        self.logger.debug(f"BaseViewModule.get_content_container called for {self.module_name} (instance: {id(self)}), returning self.")
+        return self
 
     def show_notification(self, message: str, level: str = "info"):
         """

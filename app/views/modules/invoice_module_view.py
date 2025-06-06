@@ -1,6 +1,8 @@
 # app/views/modules/invoice_module_view.py
 import logging
 import os
+import sys
+import subprocess
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -23,6 +25,13 @@ from app.services.integrations.jd_auth_manager import JDAuthManager # Assuming a
 from app.services.integrations.jd_quote_data_service import create_jd_quote_data_service, JDQuoteDataService
 from app.services.integrations.jd_po_data_service import create_jd_po_data_service, JDPODataService
 
+# ReportLab Imports
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +47,7 @@ class InvoiceModuleView(BaseViewModule):
                  main_window: Optional[QWidget] = None,
                  jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
                  parent: Optional[QWidget] = None):
+        print("DEBUG: Entering InvoiceModuleView.__init__")
         super().__init__(
             module_name="Invoice Module",
             config=config, # config is already a parameter
@@ -45,6 +55,7 @@ class InvoiceModuleView(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
+        print("DEBUG: In InvoiceModuleView.__init__ - AFTER super().__init__")
         
         self.config = config # Storing config if needed by _initialize_services
         self.auth_manager = auth_manager # Storing auth_manager
@@ -59,6 +70,7 @@ class InvoiceModuleView(BaseViewModule):
         # This requires an asyncio event loop to be running and integrated with PyQt.
         # If not, this specific call might fail or not work as expected.
         # A common pattern is to use qasync or call this from an already async context.
+        print("DEBUG: In InvoiceModuleView.__init__ - BEFORE asyncio.create_task for _initialize_services")
         try:
             asyncio.create_task(self._initialize_services())
         except RuntimeError as e:
@@ -68,123 +80,133 @@ class InvoiceModuleView(BaseViewModule):
         self.current_dealer_account_no = None
         self.quote_details = None
         
+        print("DEBUG: In InvoiceModuleView.__init__ - BEFORE self._init_ui()")
         self._init_ui()
         
     def _init_ui(self):
         """Initialize the user interface."""
-        main_layout = QVBoxLayout(self)
+        print("DEBUG: InvoiceModuleView _init_ui called")
+        self.logger.debug(f"InvoiceModuleView._init_ui called for instance {id(self)}")
+        print("DEBUG: In InvoiceModuleView._init_ui - BEFORE main layout command")
+        main_layout = QVBoxLayout()
+        print(f"DEBUG: InvoiceModuleView _init_ui - About to call self.setLayout. Type of self: {{type(self)}}, id(self.logger): {{id(self.logger) if self.logger else 'None'}}")
+        self.setLayout(main_layout)
+        print(f"DEBUG: InvoiceModuleView _init_ui - Returned from self.setLayout. self.layout() is {{self.layout()}}")
         main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Header
-        title_label = QLabel("Invoice from Quote")
-        title_font = QFont("Arial", 16, QFont.Weight.Bold)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
-        main_layout.addWidget(title_label)
-        
-        # Quote info section
+        # --- Simplified Title (from previous step, can be kept or removed for this test) ---
+        title_label_diag = QLabel("Simplified Original Invoice View - Testing") # Renamed to avoid conflict
+        font_diag = QFont("Arial", 16, QFont.Weight.Bold) # Renamed to avoid conflict
+        title_label_diag.setFont(font_diag)
+        main_layout.addWidget(title_label_diag)
+
+        # --- Start of UNCOMMENTED/RESTORED Quote info section ---
         quote_info_group = QGroupBox("Quote Information")
         quote_info_layout = QFormLayout()
-        
+
         self.quote_id_field = QLineEdit()
         self.quote_id_field.setReadOnly(True)
-        
+
         self.customer_name_field = QLineEdit()
         self.customer_name_field.setReadOnly(True)
-        
+
         self.salesperson_field = QLineEdit()
         self.salesperson_field.setReadOnly(True)
-        
+
         self.creation_date_field = QLineEdit()
         self.creation_date_field.setReadOnly(True)
-        
+
         quote_info_layout.addRow("Quote ID:", self.quote_id_field)
         quote_info_layout.addRow("Customer:", self.customer_name_field)
         quote_info_layout.addRow("Salesperson:", self.salesperson_field)
         quote_info_layout.addRow("Created:", self.creation_date_field)
-        
+
         quote_info_group.setLayout(quote_info_layout)
         main_layout.addWidget(quote_info_group)
-        
+        # --- End of UNCOMMENTED/RESTORED Quote info section ---
+
         # Equipment section
         equipment_group = QGroupBox("Equipment")
         equipment_layout = QVBoxLayout()
-        
+
         self.equipment_table = QTableWidget(0, 4)  # rows, columns
         self.equipment_table.setHorizontalHeaderLabels(["Model", "Serial #", "Order #", "Price"])
         self.equipment_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.equipment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.equipment_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.equipment_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        
+
         equipment_layout.addWidget(self.equipment_table)
         equipment_group.setLayout(equipment_layout)
         main_layout.addWidget(equipment_group)
-        
+
         # Trade-ins section
         tradein_group = QGroupBox("Trade-ins")
         tradein_layout = QVBoxLayout()
-        
-        self.tradein_table = QTableWidget(0, 3)  # rows, columns
+
+        self.tradein_table = QTableWidget(0, 3)  # Assuming 3 columns: Model, Serial #, Value
         self.tradein_table.setHorizontalHeaderLabels(["Model", "Serial #", "Value"])
         self.tradein_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tradein_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tradein_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        
+
         tradein_layout.addWidget(self.tradein_table)
         tradein_group.setLayout(tradein_layout)
         main_layout.addWidget(tradein_group)
-        
+
         # Notes section
         notes_group = QGroupBox("Notes")
-        notes_layout = QVBoxLayout()
-        
+        notes_layout = QVBoxLayout() # This layout is for the group box
+
         self.notes_text = QTextEdit()
-        self.notes_text.setReadOnly(True)
-        self.notes_text.setMinimumHeight(80)
-        
+        self.notes_text.setReadOnly(True) # Assuming it's read-only by default
+        self.notes_text.setMinimumHeight(80) # Example height
+
         notes_layout.addWidget(self.notes_text)
         notes_group.setLayout(notes_layout)
         main_layout.addWidget(notes_group)
-        
+
         # Buttons section
         buttons_layout = QHBoxLayout()
-        
+
         self.fetch_quote_btn = QPushButton("Fetch Quote Details")
         self.fetch_quote_btn.setToolTip("Fetch the details for the current quote")
         self.fetch_quote_btn.clicked.connect(self._fetch_quote_details)
-        
-        # New buttons for PDF viewing
+
         self.view_proposal_pdf_btn = QPushButton("View Proposal PDF")
         self.view_proposal_pdf_btn.setToolTip("Fetch and view the proposal PDF for the current quote")
-        self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked) # Wrapper for async
+        self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked)
         self.view_proposal_pdf_btn.setEnabled(False) # Enable when quote_id is available
 
         self.view_po_pdf_btn = QPushButton("View PO PDF")
         self.view_po_pdf_btn.setToolTip("Fetch and view the PO PDF for the current quote")
-        self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked) # Wrapper for async
+        self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked)
         self.view_po_pdf_btn.setEnabled(False) # Enable when quote_id is available
 
         self.print_invoice_btn = QPushButton("Print Invoice")
         self.print_invoice_btn.setToolTip("Print the current invoice")
         self.print_invoice_btn.clicked.connect(self._print_invoice)
         self.print_invoice_btn.setEnabled(False)  # Disabled until data is loaded
-        
+
         self.save_pdf_btn = QPushButton("Save as PDF")
         self.save_pdf_btn.setToolTip("Save the current invoice as a PDF file")
         self.save_pdf_btn.clicked.connect(self._save_as_pdf)
         self.save_pdf_btn.setEnabled(False)  # Disabled until data is loaded
-        
+
         buttons_layout.addWidget(self.fetch_quote_btn)
-        buttons_layout.addWidget(self.view_proposal_pdf_btn) # Added new button
-        buttons_layout.addWidget(self.view_po_pdf_btn) # Added new button
+        buttons_layout.addWidget(self.view_proposal_pdf_btn)
+        buttons_layout.addWidget(self.view_po_pdf_btn)
         buttons_layout.addStretch(1)
         buttons_layout.addWidget(self.print_invoice_btn)
         buttons_layout.addWidget(self.save_pdf_btn)
-        
+
         main_layout.addLayout(buttons_layout)
+
+        # --- Simplified Status Label (from previous step) ---
+        self.test_status_label = QLabel("Status: Simplified UI + Quote Info Loaded")
+        main_layout.addWidget(self.test_status_label)
+        main_layout.addStretch()
         
-        self.setLayout(main_layout)
     
     def initiate_invoice_from_quote(self, quote_id: str, dealer_account_no: str):
         """
@@ -210,7 +232,7 @@ class InvoiceModuleView(BaseViewModule):
     async def _initialize_services(self):
         # This method would be called by the application's event loop or a dedicated task runner
         self.logger.info("Initializing JD services...")
-        if self.auth_manager and self.auth_manager.is_configured(): # is_operational check might be better if auth_manager has it
+        if self.auth_manager and self.auth_manager.is_operational: # is_operational check might be better if auth_manager has it
             try:
                 self.jd_quote_data_service = await create_jd_quote_data_service(self.config, self.auth_manager)
                 if self.jd_quote_data_service and not self.jd_quote_data_service.is_operational:
@@ -266,9 +288,14 @@ class InvoiceModuleView(BaseViewModule):
         
         # Create a wrapper function that handles the parameters properly
         def get_quote_details_wrapper(*args, **kwargs):
-            # Ignore the status_callback parameter that Worker automatically adds
-            return self.jd_quote_service.get_quote_details_via_api(
-                self.current_quote_id, self.current_dealer_account_no)
+            # This function is run in a separate thread by Worker
+            # self.jd_quote_service is JDQuoteIntegrationService
+            coro = self.jd_quote_service.get_quote_details_via_api(
+                self.current_quote_id, self.current_dealer_account_no
+            )
+            # Ensure asyncio is imported in this file if not already
+            import asyncio
+            return asyncio.run(coro)
         
         # Fetch quote details in background thread
         worker = Worker(get_quote_details_wrapper)
@@ -416,7 +443,7 @@ class InvoiceModuleView(BaseViewModule):
         
         # Calculate totals
         subtotal = sum(item["price"] for item in equipment_items)
-        tax_rate = 0.07  # Example tax rate, should be configurable
+        tax_rate = self.config.invoice_tax_rate
         tax_amount = subtotal * tax_rate
         total = subtotal + tax_amount
         
@@ -649,85 +676,109 @@ class InvoiceModuleView(BaseViewModule):
     def _generate_pdf(self, filename, invoice):
         """Generate a PDF invoice using ReportLab."""
         try:
-            # This is a placeholder implementation. In a real scenario, you would use ReportLab or another PDF library.
-            # This implementation just creates a simple text file with the invoice data
             self.logger.info(f"Generating PDF for invoice #{invoice['invoice_number']} to {filename}")
-            
-            with open(filename, 'w') as f:
-                # Write invoice header
-                f.write(f"INVOICE #{invoice['invoice_number']}\n")
-                f.write(f"Date: {invoice['date']}\n")
-                f.write(f"Quote ID: {invoice['quote_id']}\n\n")
-                
-                # Customer information
-                f.write("CUSTOMER INFORMATION\n")
-                f.write(f"Name: {invoice['customer']['name']}\n")
-                f.write(f"Address: {invoice['customer']['address']}\n")
-                f.write(f"City: {invoice['customer']['city']}, State: {invoice['customer']['state']}, ZIP: {invoice['customer']['zip']}\n")
-                f.write(f"Phone: {invoice['customer']['phone']}\n")
-                f.write(f"Email: {invoice['customer']['email']}\n\n")
-                
-                # Salesperson
-                f.write(f"Salesperson: {invoice['salesperson']}\n\n")
-                
-                # Equipment items
-                f.write("EQUIPMENT\n")
-                for item in invoice['items']:
-                    f.write(f"Model: {item['model']}, Serial #: {item['serial_number']}, Order #: {item['order_number']}, Price: ${item['price']:,.2f}\n")
-                f.write("\n")
-                
-                # Trade-ins
-                if invoice['trade_ins']:
-                    f.write("TRADE-INS\n")
-                    for item in invoice['trade_ins']:
-                        f.write(f"Model: {item['model']}, Serial #: {item['serial_number']}, Value: ${item['value']:,.2f}\n")
-                    f.write("\n")
-                
-                # Totals
-                f.write("TOTALS\n")
-                f.write(f"Subtotal: ${invoice['subtotal']:,.2f}\n")
-                f.write(f"Tax Rate: {invoice['tax_rate'] * 100:.1f}%\n")
-                f.write(f"Tax Amount: ${invoice['tax_amount']:,.2f}\n")
-                f.write(f"Trade-in Total: ${invoice['trade_in_total']:,.2f}\n")
-                f.write(f"Total Due: ${invoice['amount_due']:,.2f}\n\n")
-                
-                # Notes
-                if invoice['notes']:
-                    f.write("NOTES\n")
-                    f.write(f"{invoice['notes']}\n")
-            
-            self.logger.info(f"PDF generation complete for {filename}")
-            
-            # In a real implementation, you would import reportlab and use it to create a proper PDF
-            """
-            Example with ReportLab:
-            
-            from reportlab.lib.pagesizes import letter
-            from reportlab.platypus import SimpleDocTemplate, Table, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet
-            
+
             doc = SimpleDocTemplate(filename, pagesize=letter)
             styles = getSampleStyleSheet()
-            
-            # Build the PDF content
             content = []
-            
-            # Add the invoice header
-            content.append(Paragraph(f"INVOICE #{invoice['invoice_number']}", styles['Title']))
+
+            # Invoice Header
+            content.append(Paragraph(f"INVOICE #{invoice['invoice_number']}", styles['Heading1']))
             content.append(Paragraph(f"Date: {invoice['date']}", styles['Normal']))
             content.append(Paragraph(f"Quote ID: {invoice['quote_id']}", styles['Normal']))
-            content.append(Spacer(1, 12))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Customer Information
+            content.append(Paragraph("Customer Information", styles['Heading2']))
+            content.append(Paragraph(f"Name: {invoice['customer']['name']}", styles['Normal']))
+            content.append(Paragraph(f"Address: {invoice['customer']['address']}", styles['Normal']))
+            content.append(Paragraph(f"City: {invoice['customer']['city']}, State: {invoice['customer']['state']}, ZIP: {invoice['customer']['zip']}", styles['Normal']))
+            content.append(Paragraph(f"Phone: {invoice['customer']['phone']}", styles['Normal']))
+            content.append(Paragraph(f"Email: {invoice['customer']['email']}", styles['Normal']))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Salesperson
+            content.append(Paragraph(f"Salesperson: {invoice['salesperson']}", styles['Normal']))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Equipment Table
+            content.append(Paragraph("Equipment", styles['Heading2']))
+            equip_data = [['Model', 'Serial #', 'Order #', 'Price']]
+            for item in invoice['items']:
+                equip_data.append([item['model'], item['serial_number'], item['order_number'], f"${item['price']:,.2f}"])
             
-            # Add customer info
-            # ... etc
-            
-            # Build the document
+            equip_table = Table(equip_data)
+            equip_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('ALIGN', (3,1), (3,-1), 'RIGHT'), # Price column right aligned
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                ('BACKGROUND', (0,1), (-1,-1), colors.beige),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            content.append(equip_table)
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Trade-ins Table (Conditional)
+            if invoice['trade_ins']:
+                content.append(Paragraph("Trade-ins", styles['Heading2']))
+                trade_data = [['Model', 'Serial #', 'Value']]
+                for item in invoice['trade_ins']:
+                    trade_data.append([item['model'], item['serial_number'], f"${item['value']:,.2f}"])
+
+                trade_table = Table(trade_data)
+                trade_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('ALIGN', (2,1), (2,-1), 'RIGHT'), # Value column right aligned
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey), # Different background for trade-ins
+                    ('GRID', (0,0), (-1,-1), 1, colors.black)
+                ]))
+                content.append(trade_table)
+                content.append(Spacer(1, 0.25 * inch))
+
+            # Totals Section
+            content.append(Paragraph("Totals", styles['Heading2']))
+            content.append(Paragraph(f"Subtotal: ${invoice['subtotal']:,.2f}", styles['Normal']))
+            content.append(Paragraph(f"Tax Rate: {invoice['tax_rate'] * 100:.1f}%", styles['Normal']))
+            content.append(Paragraph(f"Tax Amount: ${invoice['tax_amount']:,.2f}", styles['Normal']))
+            if invoice['trade_ins']: # Only show trade-in total if there are trade-ins
+                content.append(Paragraph(f"Trade-in Total: ${invoice['trade_in_total']:,.2f}", styles['Normal']))
+            content.append(Paragraph(f"Total Due: ${invoice['amount_due']:,.2f}", styles['Normal']))
+            content.append(Spacer(1, 0.25 * inch))
+
+            # Notes Section (Conditional)
+            if invoice['notes']:
+                content.append(Paragraph("Notes", styles['Heading2']))
+                content.append(Paragraph(invoice['notes'], styles['Normal']))
+
             doc.build(content)
-            """
-            
+            self.logger.info(f"PDF generation complete for {filename}")
+
         except Exception as e:
             self.logger.error(f"Error generating PDF: {str(e)}", exc_info=True)
             raise
+
+    def _open_file_externally(self, filepath: str):
+        try:
+            if sys.platform == "win32":
+                os.startfile(filepath)
+            elif sys.platform == "darwin": # macOS
+                subprocess.call(['open', filepath])
+            else: # Linux and other POSIX
+                subprocess.call(['xdg-open', filepath])
+            self.logger.info(f"Attempted to open file: {filepath}")
+        except FileNotFoundError:
+            self.logger.error(f"Could not open file: {filepath}. The file was not found at the path.")
+            QMessageBox.warning(self, "Open File Error", f"Could not open {os.path.basename(filepath)}.\nFile not found at the specified path.")
+        except Exception as e:
+            self.logger.error(f"Failed to open file {filepath}: {e}")
+            QMessageBox.warning(self, "Open File Error", f"Could not open {os.path.basename(filepath)}.\nAn error occurred: {e}")
     
     def _show_status_message(self, message, timeout=5000):
         """Shows a status message in the main window's status bar if available."""
@@ -758,6 +809,9 @@ class InvoiceModuleView(BaseViewModule):
             self.logger.warning("View Proposal PDF clicked but no current_quote_id.")
 
     async def handle_view_proposal_pdf(self, quote_id: str):
+        if not self.parent():
+            self.logger.warning(f"{self.module_name}: View is being deleted or has no parent. Aborting proposal PDF operation.")
+            return
         self.logger.info(f"Handling view proposal PDF for quote_id: {quote_id}")
         if self.jd_quote_data_service and self.jd_quote_data_service.is_operational:
             self._show_status_message(f"Fetching proposal PDF for {quote_id}...")
@@ -773,26 +827,33 @@ class InvoiceModuleView(BaseViewModule):
                         with open(temp_pdf_path, "wb") as f:
                             f.write(pdf_data)
                         self.logger.info(f"Proposal PDF saved to {temp_pdf_path}")
-                        QMessageBox.information(self, "Proposal PDF", f"Proposal PDF downloaded to {temp_pdf_path}. Displaying is not yet implemented.")
-                        # os.startfile(temp_pdf_path) # For Windows
+                        if not self.parent(): return
+                        self._open_file_externally(temp_pdf_path)
+                        if not self.parent(): return
+                        QMessageBox.information(self, "Proposal PDF", f"Proposal PDF downloaded to {temp_pdf_path} and an attempt was made to open it.")
                     except Exception as e:
                         self.logger.error(f"Error saving/opening temporary PDF: {e}")
+                        if not self.parent(): return
                         QMessageBox.critical(self, "PDF Error", f"Could not save or open PDF: {e}")
                 elif isinstance(pdf_data, dict) and pdf_data.get("url"): # If it's a JSON with a URL
                     self.logger.info(f"Proposal PDF URL received: {pdf_data.get('url')}")
+                    if not self.parent(): return
                     QMessageBox.information(self, "Proposal PDF", f"PDF available at URL: {pdf_data.get('url')}. Opening URL is not yet implemented.")
                     # QDesktopServices.openUrl(QUrl(pdf_data.get('url')))
                 else:
                     self.logger.info(f"Proposal PDF data received (JSON or other): {pdf_data}")
+                    if not self.parent(): return
                     QMessageBox.information(self, "Proposal PDF Data", f"Data received: {str(pdf_data)[:200]}...")
                 self._show_status_message(f"Proposal PDF for {quote_id} processed.")
             else:
                 error = result.error()
                 self.logger.error(f"Error fetching proposal PDF: {error.message} - {error.details}")
+                if not self.parent(): return
                 QMessageBox.critical(self, "Error", f"Error fetching proposal PDF: {error.message}")
                 self._show_status_message(f"Error fetching proposal PDF: {error.message}", timeout=10000)
         else:
             self.logger.warning("JD Quote Data Service is not available for viewing proposal PDF.")
+            if not self.parent(): return
             QMessageBox.warning(self, "Service Unavailable", "JD Quote Data Service is not available.")
             self._show_status_message("JD Quote Data Service is not available.", timeout=10000)
 
@@ -804,6 +865,9 @@ class InvoiceModuleView(BaseViewModule):
             self.logger.warning("View PO PDF clicked but no current_quote_id.")
 
     async def handle_view_po_pdf(self, quote_id: str): # Assuming PO PDF is linked to quote_id
+        if not self.parent():
+            self.logger.warning(f"{self.module_name}: View is being deleted or has no parent. Aborting PO PDF operation.")
+            return
         self.logger.info(f"Handling view PO PDF for quote_id: {quote_id}")
         if self.jd_po_data_service and self.jd_po_data_service.is_operational:
             self._show_status_message(f"Fetching PO PDF for {quote_id}...")
@@ -817,24 +881,32 @@ class InvoiceModuleView(BaseViewModule):
                         with open(temp_pdf_path, "wb") as f:
                             f.write(pdf_data)
                         self.logger.info(f"PO PDF saved to {temp_pdf_path}")
-                        QMessageBox.information(self, "PO PDF", f"PO PDF downloaded to {temp_pdf_path}. Displaying is not yet implemented.")
+                        if not self.parent(): return
+                        self._open_file_externally(temp_pdf_path)
+                        if not self.parent(): return
+                        QMessageBox.information(self, "PO PDF", f"PO PDF downloaded to {temp_pdf_path} and an attempt was made to open it.")
                     except Exception as e:
                         self.logger.error(f"Error saving/opening temporary PO PDF: {e}")
+                        if not self.parent(): return
                         QMessageBox.critical(self, "PDF Error", f"Could not save or open PO PDF: {e}")
                 elif isinstance(pdf_data, dict) and pdf_data.get("url"):
                      self.logger.info(f"PO PDF URL received: {pdf_data.get('url')}")
+                     if not self.parent(): return
                      QMessageBox.information(self, "PO PDF", f"PDF available at URL: {pdf_data.get('url')}. Opening URL is not yet implemented.")
                 else:
                     self.logger.info(f"PO PDF data received (JSON or other): {pdf_data}")
+                    if not self.parent(): return
                     QMessageBox.information(self, "PO PDF Data", f"Data received: {str(pdf_data)[:200]}...")
                 self._show_status_message(f"PO PDF for {quote_id} processed.")
             else:
                 error = result.error()
                 self.logger.error(f"Error fetching PO PDF: {error.message} - {error.details}")
+                if not self.parent(): return
                 QMessageBox.critical(self, "Error", f"Error fetching PO PDF: {error.message}")
                 self._show_status_message(f"Error fetching PO PDF: {error.message}", timeout=10000)
         else:
             self.logger.warning("JD PO Data Service is not available for viewing PO PDF.")
+            if not self.parent(): return
             QMessageBox.warning(self, "Service Unavailable", "JD PO Data Service is not available.")
             self._show_status_message("JD PO Data Service is not available.", timeout=10000)
 

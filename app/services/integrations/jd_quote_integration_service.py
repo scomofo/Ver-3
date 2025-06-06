@@ -231,7 +231,7 @@ class JDQuoteIntegrationService:
             logger.error(f"Error creating quote via API: {e}", exc_info=True)
             return {"type": "ERROR", "body": {"errorMessage": str(e)}}
 
-    def get_quote_details_via_api(self, quote_id: str, dealer_account_no: str) -> dict:
+    async def get_quote_details_via_api(self, quote_id: str, dealer_account_no: str) -> dict:
         """
         Retrieves quote details from the John Deere system.
         
@@ -251,12 +251,12 @@ class JDQuoteIntegrationService:
                 logger.error("JDQuoteIntegrationService: MaintainQuotesAPI not available. Cannot get quote details.")
                 return {"type": "ERROR", "body": {"errorMessage": "MaintainQuotesAPI not available"}}
             
-            logger.info(f"Requesting quote details for quote ID: {quote_id}")
+            logger.info(f"Requesting quote details for quote ID: {{quote_id}}")
             # Use the get_external_quote_status method which is already implemented in MaintainQuotesAPI
-            response = self.maintain_quotes_api.get_external_quote_status(quote_id)
+            response_dict = await self.maintain_quotes_api.get_external_quote_status(quote_id) # Await here
             
-            # Use the standard response handler
-            handled_response = self._handle_api_response(response, f"retrieve quote details for {quote_id}")
+            # _handle_api_response expects the actual data dict or None
+            handled_response = self._handle_api_response(response_dict, f"retrieve quote details for {{quote_id}}")
             
             # Add dealer account number to the response if needed
             if handled_response.get("type") == "SUCCESS" and isinstance(handled_response.get("body"), dict):
