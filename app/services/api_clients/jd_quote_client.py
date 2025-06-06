@@ -7,8 +7,8 @@ import json
 from datetime import datetime
 
 # Import the Result type and exceptions
-from app.core.exceptions import BRIDealException, ErrorSeverity
-from app.core.result import Result  # Add this import
+from app.core.exceptions import BRIDealException, ErrorContext, ErrorSeverity
+from app.core.result import Result
 from app.services.integrations.jd_auth_manager import JDAuthManager
 
 logger = logging.getLogger(__name__)
@@ -57,11 +57,11 @@ class JDQuoteApiClient:
             )
             
             if not token:
-                raise BRIDealException.from_context(
+                raise BRIDealException(ErrorContext(
                     code="JD_AUTH_TOKEN_MISSING",
                     message="No valid authentication token available",
                     severity=ErrorSeverity.HIGH
-                )
+                ))
             
             return {
                 "Authorization": f"Bearer {token}",
@@ -70,11 +70,11 @@ class JDQuoteApiClient:
             }
         except Exception as e:
             logger.error(f"Failed to get authentication headers: {e}")
-            raise BRIDealException.from_context(
+            raise BRIDealException(ErrorContext(
                 code="JD_AUTH_HEADER_ERROR",
                 message=f"Failed to prepare authentication headers: {str(e)}",
                 severity=ErrorSeverity.HIGH
-            )
+            ))
     
     async def _request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Result[Dict, BRIDealException]:
         """Make authenticated request to JD API"""
@@ -110,60 +110,60 @@ class JDQuoteApiClient:
                         async with self.session.request(method, url, **kwargs) as retry_response:
                             retry_text = await retry_response.text()
                             if retry_response.status >= 400:
-                                return Result.failure(BRIDealException.from_context(
+                                return Result.failure(BRIDealException(ErrorContext(
                                     code="JD_API_ERROR",
                                     message=f"API request failed after token refresh: {retry_response.status}",
                                     severity=ErrorSeverity.MEDIUM,
                                     details={"response": retry_text, "status": retry_response.status}
-                                ))
+                                )))
                             
                             return Result.success(json.loads(retry_text) if retry_text else {})
                             
                     except Exception as refresh_error:
                         logger.error(f"Token refresh failed: {refresh_error}")
-                        return Result.failure(BRIDealException.from_context(
+                        return Result.failure(BRIDealException(ErrorContext(
                             code="JD_AUTH_REFRESH_FAILED",
                             message="Authentication token refresh failed",
                             severity=ErrorSeverity.HIGH,
                             details={"error": str(refresh_error)}
-                        ))
+                        )))
                 
                 if response.status >= 400:
-                    return Result.failure(BRIDealException.from_context(
+                    return Result.failure(BRIDealException(ErrorContext(
                         code="JD_API_ERROR",
                         message=f"API request failed: {response.status}",
                         severity=ErrorSeverity.MEDIUM,
                         details={"response": response_text, "status": response.status}
-                    ))
+                    )))
                 
                 # Parse JSON response
                 try:
                     response_data = json.loads(response_text) if response_text else {}
                     return Result.success(response_data)
                 except json.JSONDecodeError as e:
-                    return Result.failure(BRIDealException.from_context(
+                    return Result.failure(BRIDealException(ErrorContext(
                         code="JD_RESPONSE_PARSE_ERROR",
                         message="Failed to parse API response as JSON",
                         severity=ErrorSeverity.MEDIUM,
                         details={"response": response_text, "error": str(e)}
-                    ))
+                    )))
                     
         except aiohttp.ClientError as e:
             logger.error(f"HTTP client error: {e}")
-            return Result.failure(BRIDealException.from_context(
+            return Result.failure(BRIDealException(ErrorContext(
                 code="JD_HTTP_ERROR",
                 message=f"HTTP request failed: {str(e)}",
                 severity=ErrorSeverity.MEDIUM,
                 details={"endpoint": endpoint, "method": method}
-            ))
+            )))
         except Exception as e:
             logger.error(f"Unexpected error in API request: {e}")
-            return Result.failure(BRIDealException.from_context(
+            return Result.failure(BRIDealException(ErrorContext(
                 code="JD_UNEXPECTED_ERROR",
                 message=f"Unexpected error during API request: {str(e)}",
                 severity=ErrorSeverity.HIGH,
                 details={"endpoint": endpoint, "method": method}
-            ))
+            )))
     
     # API Methods
     async def get_quote_details(self, quote_id: str) -> Result[Dict, BRIDealException]:
@@ -232,11 +232,11 @@ class JDQuoteApiClient:
             result = await self._request("GET", "health")
             return Result.success(result.is_success())
         except Exception as e:
-            return Result.failure(BRIDealException.from_context(
+            return Result.failure(BRIDealException(ErrorContext(
                 code="JD_HEALTH_CHECK_FAILED",
                 message=f"Health check failed: {str(e)}",
                 severity=ErrorSeverity.LOW
-            ))
+            )))
     
     # Resource cleanup
     async def close(self):
