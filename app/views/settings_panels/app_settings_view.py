@@ -38,6 +38,7 @@ USER_CONFIGURABLE_SETTINGS = {
     "General": [
         {"key": "AUTO_SAVE_DEAL_DRAFT", "label": "Auto-save Deal Draft", "type": "bool", "default": True},
         {"key": "DEFAULT_CACHE_DURATION_SECONDS", "label": "Default Cache Duration (s)", "type": "int", "default": 3600},
+        {"key": "DASHBOARD_REFRESH_INTERVAL_MS", "label": "Dashboard Refresh Interval (minutes)", "type": "minutes_to_ms", "default": 60}, # Default 60 minutes
     ]
 }
 
@@ -103,7 +104,12 @@ class AppSettingsView(QWidget):
                     widget.setLayout(widget_layout)
                     self.input_widgets[key] = path_edit 
                 elif setting_type == "bool": widget = QCheckBox()
-                elif setting_type == "int": widget = QLineEdit() 
+                elif setting_type == "int":
+                    widget = QLineEdit()
+                    # Add validator for integers if needed, e.g., QIntValidator
+                elif setting_type == "minutes_to_ms": # Custom type for our interval
+                    widget = QLineEdit() # Use QLineEdit for minutes, will validate as int
+                    # Optionally, use QSpinBox here
                 elif setting_type == "readonly_string": widget = QLineEdit(); widget.setReadOnly(True)
                 else: widget = QLineEdit()
 
@@ -145,9 +151,42 @@ class AppSettingsView(QWidget):
                     widget.setCurrentText(str(current_value))
                 elif setting_type == "bool" and isinstance(widget, QCheckBox):
                     widget.setChecked(bool(current_value))
-                elif isinstance(widget, QLineEdit): 
-                    widget.setText(str(current_value) if current_value is not None else "")
+                elif isinstance(widget, QLineEdit):
+                    if setting_type == "minutes_to_ms":
+                        # Convert MS from config to minutes for display
+                        value_ms = int(current_value) if current_value is not None else int(setting_def.get("default", 60) * 60000)
+                        widget.setText(str(value_ms // 60000))
+                    else:
+                        widget.setText(str(current_value) if current_value is not None else "")
         logger.info("Settings loaded into UI.")
+
+    def _save_setting_to_json_config(self, key: str, value: Any) -> bool:
+        """Helper to save a specific key-value pair to config.json."""
+        config_file_path = "config.json" # Assuming it's in the root
+        try:
+            if os.path.exists(config_file_path):
+                with open(config_file_path, 'r') as f:
+                    current_json_config = json.load(f)
+            else:
+                current_json_config = {}
+
+            current_json_config[key] = value
+
+            with open(config_file_path, 'w') as f:
+                json.dump(current_json_config, f, indent=4)
+
+            # Update the live config object as well
+            if hasattr(self.config, key):
+                 setattr(self.config, key, value)
+            elif isinstance(self.config, dict): # Fallback if config is a dict
+                 self.config[key] = value
+
+            logger.info(f"Saved '{key}' = '{value}' to {config_file_path} and live config.")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving setting '{key}' to {config_file_path}: {e}", exc_info=True)
+            QMessageBox.critical(self, "Save Error", f"Could not save setting {key} to {config_file_path}.")
+            return False
 
     def _apply_settings(self):
         if not self.config:
@@ -156,37 +195,88 @@ class AppSettingsView(QWidget):
 
         applied_theme = None
         changes_made = False
+        config_json_updated_keys = {}
+
         for category, settings in USER_CONFIGURABLE_SETTINGS.items():
             for setting_def in settings:
                 key = setting_def["key"]
                 widget = self.input_widgets.get(key)
                 if not widget: continue
+
                 setting_type = setting_def.get("type","string")
-                new_value = None
+                new_value_to_save = None # This will hold the value in the format to be saved (e.g., MS for interval)
                 current_config_value = self.config.get(key, setting_def.get("default"))
 
                 if setting_type == "theme_selector" and isinstance(widget,QComboBox):
-                    new_value = widget.currentText()
-                    if new_value != current_config_value: 
-                        applied_theme = new_value 
+                    new_value_to_save = widget.currentText()
+                    if new_value_to_save != current_config_value:
+                        applied_theme = new_value_to_save
                 elif setting_type == "bool" and isinstance(widget,QCheckBox):
-                    new_value = widget.isChecked()
+                    new_value_to_save = widget.isChecked()
                 elif isinstance(widget,QLineEdit):
                     new_value_str = widget.text()
                     if setting_type == "int":
-                        try: new_value = int(new_value_str)
+                        try:
+                            new_value_to_save = int(new_value_str)
                         except ValueError: 
                             logger.warning(f"Invalid integer value for {key}: '{new_value_str}'. Skipping update.")
                             QMessageBox.warning(self,"Invalid Input",f"Value for '{setting_def['label']}' must be an integer.")
-                            continue 
+                            continue
+                    elif setting_type == "minutes_to_ms":
+                        try:
+                            minutes_val = int(new_value_str)
+                            if minutes_val <= 0:
+                                QMessageBox.warning(self, "Invalid Input", f"Value for '{setting_def['label']}' must be a positive integer (minutes).")
+                                continue
+                            new_value_to_save = minutes_val * 60000 # Convert minutes to MS for saving
+                        except ValueError:
+                            logger.warning(f"Invalid integer value for minutes for {key}: '{new_value_str}'. Skipping update.")
+                            QMessageBox.warning(self,"Invalid Input",f"Value for '{setting_def['label']}' must be an integer (minutes).")
+                            continue
                     else: 
-                        new_value = new_value_str
+                        new_value_to_save = new_value_str
                 
-                if new_value is not None and new_value != current_config_value:
-                    self.config.set(key, new_value) 
-                    logger.info(f"Setting '{key}' updated to: {new_value}")
+                if new_value_to_save is not None and new_value_to_save != current_config_value:
+                    # Instead of self.config.set(), we'll store it to write to JSON later
+                    config_json_updated_keys[key] = new_value_to_save
+                    logger.info(f"Setting '{key}' prepared for update to: {new_value_to_save}")
                     changes_made = True
         
+        # Save all accumulated changes to config.json
+        json_save_successful = True
+        if config_json_updated_keys:
+            # Read current config.json
+            config_file_path = "config.json"
+            try:
+                if os.path.exists(config_file_path):
+                    with open(config_file_path, 'r') as f:
+                        current_json_config = json.load(f)
+                else:
+                    current_json_config = {}
+
+                # Update with new values
+                for key, value in config_json_updated_keys.items():
+                    current_json_config[key] = value
+
+                # Write back to config.json
+                with open(config_file_path, 'w') as f:
+                    json.dump(current_json_config, f, indent=4)
+
+                logger.info(f"Successfully saved {len(config_json_updated_keys)} settings to {config_file_path}.")
+
+                # Update live config object as well
+                for key, value in config_json_updated_keys.items():
+                    if hasattr(self.config, key):
+                        setattr(self.config, key, value)
+                    elif isinstance(self.config, dict): # Fallback if config is a dict
+                        self.config[key] = value
+
+            except Exception as e:
+                logger.error(f"Error saving settings to {config_file_path}: {e}", exc_info=True)
+                QMessageBox.critical(self, "Save Error", f"Could not save settings to {config_file_path}.")
+                json_save_successful = False
+                changes_made = False # Revert changes_made if save failed
+
         if applied_theme and self.theme_manager:
             if applied_theme in self.theme_manager.available_styles():
                 self.theme_manager.apply_system_style(applied_theme)
@@ -203,10 +293,15 @@ class AppSettingsView(QWidget):
                 elif not self.theme_manager.apply_qss_theme(applied_theme): 
                     logger.warning(f"Could not apply theme '{applied_theme}' as system style or QSS (tried {qss_file_to_try}).")
 
-        if changes_made or applied_theme:
+        if changes_made and json_save_successful:
             QMessageBox.information(self,"Settings Applied","Settings have been applied. Some changes may require an application restart to take full effect.")
-            self.settings_changed_signal.emit()
-        else: QMessageBox.information(self,"Settings","No changes detected to apply.")
+            self.settings_changed_signal.emit() # Emit signal if any setting changed
+        elif applied_theme and not changes_made : # Only theme changed
+             QMessageBox.information(self,"Theme Applied","Theme settings applied. This change is immediate.")
+             self.settings_changed_signal.emit()
+        elif not changes_made and not applied_theme:
+             QMessageBox.information(self,"Settings","No changes detected to apply.")
+        # If json_save_successful is false, an error message was already shown
 
     def _browse_directory(self, line_edit_widget: QLineEdit):
         current_path = line_edit_widget.text()
