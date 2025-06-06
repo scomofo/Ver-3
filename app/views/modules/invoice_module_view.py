@@ -165,42 +165,41 @@ class InvoiceModuleView(BaseViewModule):
         notes_group.setLayout(notes_layout)
         main_layout.addWidget(notes_group)
 
-        # # Buttons section
-        # buttons_layout = QHBoxLayout()
+        # Buttons section
+        buttons_layout = QHBoxLayout()
 
-        # self.fetch_quote_btn = QPushButton("Fetch Quote Details")
-        # self.fetch_quote_btn.setToolTip("Fetch the details for the current quote")
-        # self.fetch_quote_btn.clicked.connect(self._fetch_quote_details)
+        self.fetch_quote_btn = QPushButton("Fetch Quote Details")
+        self.fetch_quote_btn.setToolTip("Fetch the details for the current quote")
+        self.fetch_quote_btn.clicked.connect(self._fetch_quote_details)
 
-        # # New buttons for PDF viewing
-        # self.view_proposal_pdf_btn = QPushButton("View Proposal PDF")
-        # self.view_proposal_pdf_btn.setToolTip("Fetch and view the proposal PDF for the current quote")
-        # self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked) # Wrapper for async
-        # self.view_proposal_pdf_btn.setEnabled(False) # Enable when quote_id is available
+        self.view_proposal_pdf_btn = QPushButton("View Proposal PDF")
+        self.view_proposal_pdf_btn.setToolTip("Fetch and view the proposal PDF for the current quote")
+        self.view_proposal_pdf_btn.clicked.connect(self._handle_view_proposal_pdf_clicked)
+        self.view_proposal_pdf_btn.setEnabled(False) # Enable when quote_id is available
 
-        # self.view_po_pdf_btn = QPushButton("View PO PDF")
-        # self.view_po_pdf_btn.setToolTip("Fetch and view the PO PDF for the current quote")
-        # self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked) # Wrapper for async
-        # self.view_po_pdf_btn.setEnabled(False) # Enable when quote_id is available
+        self.view_po_pdf_btn = QPushButton("View PO PDF")
+        self.view_po_pdf_btn.setToolTip("Fetch and view the PO PDF for the current quote")
+        self.view_po_pdf_btn.clicked.connect(self._handle_view_po_pdf_clicked)
+        self.view_po_pdf_btn.setEnabled(False) # Enable when quote_id is available
 
-        # self.print_invoice_btn = QPushButton("Print Invoice")
-        # self.print_invoice_btn.setToolTip("Print the current invoice")
-        # self.print_invoice_btn.clicked.connect(self._print_invoice)
-        # self.print_invoice_btn.setEnabled(False)  # Disabled until data is loaded
+        self.print_invoice_btn = QPushButton("Print Invoice")
+        self.print_invoice_btn.setToolTip("Print the current invoice")
+        self.print_invoice_btn.clicked.connect(self._print_invoice)
+        self.print_invoice_btn.setEnabled(False)  # Disabled until data is loaded
 
-        # self.save_pdf_btn = QPushButton("Save as PDF")
-        # self.save_pdf_btn.setToolTip("Save the current invoice as a PDF file")
-        # self.save_pdf_btn.clicked.connect(self._save_as_pdf)
-        # self.save_pdf_btn.setEnabled(False)  # Disabled until data is loaded
+        self.save_pdf_btn = QPushButton("Save as PDF")
+        self.save_pdf_btn.setToolTip("Save the current invoice as a PDF file")
+        self.save_pdf_btn.clicked.connect(self._save_as_pdf)
+        self.save_pdf_btn.setEnabled(False)  # Disabled until data is loaded
 
-        # buttons_layout.addWidget(self.fetch_quote_btn)
-        # buttons_layout.addWidget(self.view_proposal_pdf_btn) # Added new button
-        # buttons_layout.addWidget(self.view_po_pdf_btn) # Added new button
-        # buttons_layout.addStretch(1)
-        # buttons_layout.addWidget(self.print_invoice_btn)
-        # buttons_layout.addWidget(self.save_pdf_btn)
+        buttons_layout.addWidget(self.fetch_quote_btn)
+        buttons_layout.addWidget(self.view_proposal_pdf_btn)
+        buttons_layout.addWidget(self.view_po_pdf_btn)
+        buttons_layout.addStretch(1)
+        buttons_layout.addWidget(self.print_invoice_btn)
+        buttons_layout.addWidget(self.save_pdf_btn)
 
-        # main_layout.addLayout(buttons_layout)
+        main_layout.addLayout(buttons_layout)
 
         # --- Simplified Status Label (from previous step) ---
         self.test_status_label = QLabel("Status: Simplified UI + Quote Info Loaded")
