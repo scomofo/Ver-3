@@ -489,6 +489,7 @@ def get_config() -> BRIDealConfig:
         else:
             logger.warning(f"{config_file_path} not found. Proceeding with defaults/env vars.")
 
+        logger.info(f"Attempting to initialize BRIDealConfig with data from config.json: {{json_init_data}}")
         _config = BRIDealConfig(**json_init_data)
         _config.load_environment_overrides()
         
