@@ -475,7 +475,21 @@ def get_config() -> BRIDealConfig:
     """Get global configuration instance"""
     global _config
     if _config is None:
-        _config = BRIDealConfig()
+        config_file_path = Path("config.json")
+        json_init_data = {}
+        if config_file_path.exists():
+            try:
+                with open(config_file_path, 'r', encoding='utf-8') as f:
+                    json_init_data = json.load(f)
+                logger.info(f"Successfully loaded initial data from {config_file_path}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Error decoding JSON from {config_file_path}: {e}. Proceeding with defaults/env vars.")
+            except Exception as e:
+                logger.error(f"Unexpected error loading {config_file_path}: {e}. Proceeding with defaults/env vars.")
+        else:
+            logger.warning(f"{config_file_path} not found. Proceeding with defaults/env vars.")
+
+        _config = BRIDealConfig(**json_init_data)
         _config.load_environment_overrides()
         
         # Validate configuration
