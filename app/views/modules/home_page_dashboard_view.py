@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QApplication, QToolTip
 )
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QRunnable, QThreadPool
-from PyQt6.QtGui import QFont, QColor, QCursor # Added QCursor
+from PyQt6.QtGui import QFont, QColor # QCursor removed as it's no longer needed for this approach
 
 from app.views.modules.base_view_module import BaseViewModule
 # Placeholder for API clients or services if needed in the future
@@ -158,8 +158,8 @@ class WeatherCardWidget(QFrame):
         layout.addWidget(self.status_label)
 
         self.detailed_error_message = None # For storing detailed error for tooltip
-        self.setMouseTracking(True) # Enable mouse tracking for hover events on the card
-        self.status_label.setMouseTracking(True) # Also on the label itself
+        # self.setMouseTracking(True) # No longer needed for card-wide hover
+        # self.status_label.setMouseTracking(True) # No longer needed for label-specific hover
 
         self.set_status_initializing()
 
@@ -186,6 +186,8 @@ class WeatherCardWidget(QFrame):
 
         self.status_label.setText("")
         self.status_label.setVisible(False)
+        self.status_label.setToolTip("") # Clear tooltip on successful update
+        self.detailed_error_message = None
         self.setStyleSheet("""
             #WeatherCard {
                 background-color: #e9f5fd;
@@ -205,6 +207,8 @@ class WeatherCardWidget(QFrame):
         self.status_label.setText("Fetching data...")
         self.status_label.setStyleSheet("color: #1f618d;")
         self.status_label.setVisible(True)
+        self.status_label.setToolTip("") # Clear tooltip
+        self.detailed_error_message = None
         self.setStyleSheet("""
             #WeatherCard {
                 background-color: #f4f6f6; /* Slightly muted while fetching */
@@ -213,7 +217,7 @@ class WeatherCardWidget(QFrame):
                 padding: 10px;
             }""")
 
-    def set_status_error(self, city_name: str, message: str, is_api_key_error: bool):
+    def set_status_error(self, city_name: str, detailed_error_msg: str, is_api_key_error: bool):
         self.city_name_label.setText(city_name)
         self.temperature_label.setText("ERR")
         self.min_max_temp_label.setText("Min/Max: Error")
@@ -221,14 +225,17 @@ class WeatherCardWidget(QFrame):
         self.condition_label.setText("Condition: Error")
         self.icon_label.setText("⚠️") # Warning icon
 
-        self.detailed_error_message = message # Store full message for tooltip
-        brief_message = "Failed" # Generic brief message for the label
-        if is_api_key_error:
-            brief_message = "API Key Error"
-        elif "timeout" in message.lower():
-            brief_message = "Timeout"
+        self.detailed_error_message = detailed_error_msg # Store full message
 
-        self.status_label.setText(f"⚠️ Error: {brief_message} ⓘ")
+        brief_summary = "Details on hover." # Default brief summary
+        if is_api_key_error:
+            brief_summary = "API Key Error. Details on hover."
+        elif "timeout" in detailed_error_msg.lower(): # Check detailed_error_msg for timeout
+            brief_summary = "Timeout. Details on hover."
+        # Add more specific brief summaries based on detailed_error_msg if needed
+
+        self.status_label.setText(f"⚠️ Error: {brief_summary} ⓘ")
+        self.status_label.setToolTip(self.detailed_error_message) # Set tooltip directly
         self.status_label.setVisible(True)
 
         if is_api_key_error:
@@ -264,23 +271,25 @@ class WeatherCardWidget(QFrame):
         self.status_label.setText("Initializing...")
         self.status_label.setStyleSheet("color: #566573;")
         self.status_label.setVisible(True)
-        self.detailed_error_message = None # Clear detailed error on re-init
+        self.detailed_error_message = None
+        self.status_label.setToolTip("") # Clear tooltip
 
-    def enterEvent(self, event):
-        # Show tooltip if detailed error exists and mouse is roughly over status_label
-        if self.detailed_error_message and self.status_label.isVisible():
-            # Check if mouse is over the status_label area
-            status_label_rect = self.status_label.geometry()
-            # Map status_label_rect to WeatherCardWidget's coordinates
-            # Check if the cursor is over the status_label
-            local_pos = self.mapFromGlobal(QCursor.pos())
-            if self.status_label.geometry().contains(local_pos):
-                 QToolTip.showText(QCursor.pos(), self.detailed_error_message, self) # Use QCursor.pos()
-        super().enterEvent(event)
+    # enterEvent and leaveEvent are no longer needed for this QToolTip approach
+    # def enterEvent(self, event):
+    #     # Show tooltip if detailed error exists and mouse is roughly over status_label
+    #     if self.detailed_error_message and self.status_label.isVisible():
+    #         # Check if mouse is over the status_label area
+    #         status_label_rect = self.status_label.geometry()
+    #         # Map status_label_rect to WeatherCardWidget's coordinates
+    #         # Check if the cursor is over the status_label
+    #         local_pos = self.mapFromGlobal(QCursor.pos())
+    #         if self.status_label.geometry().contains(local_pos):
+    #              QToolTip.showText(QCursor.pos(), self.detailed_error_message, self) # Use QCursor.pos()
+    #     super().enterEvent(event)
 
-    def leaveEvent(self, event):
-        QToolTip.hideText()
-        super().leaveEvent(event)
+    # def leaveEvent(self, event):
+    #     QToolTip.hideText()
+    #     super().leaveEvent(event)
 
 
 class HomePageDashboardView(BaseViewModule):
@@ -536,7 +545,7 @@ class HomePageDashboardView(BaseViewModule):
                 city_display_name = city_detail['display_name']
                 break
 
-        self.logger.error(f"Error fetching weather for {city_display_name} ({city_key}): {exc_type.__name__} - {error_val}\nTrace: {tb_str}")
+        self.logger.error(f"Error fetching weather for {city_display_name} ({city_key}): {exc_type.__name__} - {error_val}. Traceback: {tb_str}")
         card = self.weather_cards.get(city_key)
         if card:
             card.set_status_error(city_display_name, str(error_val), False) # is_api_key_error is False for general errors
@@ -626,7 +635,7 @@ class HomePageDashboardView(BaseViewModule):
     def _on_forex_data_error(self, error_info: tuple):
         # error_info might be (None, exc_type, exception, traceback_str) if city_key is not used for forex/crypto
         _optional_key, exc_type, error_val, tb_str = error_info
-        self.logger.error(f"Error fetching forex data: {exc_type.__name__} - {error_val}\nTrace: {tb_str}")
+        self.logger.error(f"Error fetching Forex data: {exc_type.__name__} - {error_val}. Traceback: {tb_str}")
         self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: ⚠️ Error ({exc_type.__name__})")
         self._update_status("Forex: Error")
 
@@ -725,7 +734,7 @@ class HomePageDashboardView(BaseViewModule):
 
     def _on_crypto_data_error(self, error_info: tuple):
         _optional_key, exc_type, error_val, tb_str = error_info
-        self.logger.error(f"Error fetching crypto data: {exc_type.__name__} - {error_val}\nTrace: {tb_str}")
+        self.logger.error(f"Error fetching Crypto data: {exc_type.__name__} - {error_val}. Traceback: {tb_str}")
         self.btc_price_label.setText(f"₿ BTC-USD: ⚠️ Error ({exc_type.__name__})")
         self._update_status("Crypto: Error")
 
