@@ -166,12 +166,12 @@ class BRIDealConfig(BaseSettings):
 
     # External API Keys
     OPENWEATHERMAP_API_KEY: Optional[str] = Field(
-        default="YOUR_API_KEY_HERE",
         description="API key for OpenWeatherMap service."
+        # default removed
     )
     EXCHANGERATE_API_KEY: Optional[str] = Field(
-        default="YOUR_API_KEY_HERE",
         description="API key for ExchangeRate-API service."
+        # default removed
     )
 
     # Application Specific Settings
