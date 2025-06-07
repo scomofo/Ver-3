@@ -432,10 +432,25 @@ class BRIDealConfig(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         env_prefix = "BRIDEAL_"
-        case_sensitive = False
+        case_sensitive = False # Pydantic default is False for env vars, True for model fields.
         extra = "allow"  # Allow extra fields from .env
-        # Removed customise_sources for now to avoid complexity
-        # You can add it back if needed
+
+        @classmethod
+        def customise_sources(
+            cls,
+            settings_cls: type, # Changed from type[BaseSettings] for broader compatibility
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
+        ) -> tuple[PydanticBaseSettingsSource, ...]:
+            return (
+                init_settings,
+                json_config_settings_source, # Load config.json
+                dotenv_settings,          # Then .env file (which might have BRIDEAL_ prefixed vars)
+                env_settings,             # Then actual environment variables
+                file_secret_settings,
+            )
 
 
 def json_config_settings_source(settings: BaseSettings) -> Dict[str, Any]:
