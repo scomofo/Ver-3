@@ -1272,18 +1272,153 @@ class DealFormView(QWidget):
         self.logger.info(f"Starting CSV generation for {self.module_name}...")
         if not self.validate_form_for_csv(): self._show_status_message("CSV Gen cancelled: Validation failed.", 3000); return False
         csv_data = self.build_csv_data()
-        if not csv_data or len(csv_data.splitlines()) < 2: QMessageBox.warning(self, "CSV Export Error", "No data to export."); return False
+        if not self.validate_form_for_csv(): self._show_status_message("CSV Gen cancelled: Validation failed.", 3000); return False
+        csv_data = self.build_csv_data()
+        if not csv_data or len(csv_data.splitlines()) < 2: # Check if only headers or empty
+            QMessageBox.warning(self, "CSV Export Error", "No data to export or data processing failed. Check logs.")
+            self.logger.warning("CSV generation resulted in no data or only headers.")
+            return False
         return self._save_as_local_csv(csv_data)
 
     def build_csv_data(self) -> str:
-        csv_buffer = io.StringIO(); writer = csv.writer(csv_buffer, quoting=csv.QUOTE_ALL)
-        headers = ['Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount', 'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2', 'Salesperson', 'Email Date', 'Status', 'Timestamp', 'UniqueID', 'DealNotes']
+        self.logger.info("Building CSV data...")
+        csv_buffer = io.StringIO()
+        # Use QUOTE_ALL to ensure all fields are quoted, which is good for fields that might contain commas or newlines
+        writer = csv.writer(csv_buffer, quoting=csv.QUOTE_ALL)
+
+        headers = [
+            'Payment', 'CustomerName', 'Salesperson', 'Email Date', 'Status', 'Timestamp', 'UniqueID', 'DealNotes', # Deal Level Info
+            'ItemType', 'ItemName', 'ItemCode', 'ItemStockNumber', 'ItemOrderNumber', 'ItemPrice', # Equipment/Trade common
+            'ItemQuantity', 'ItemLocation', 'ItemChargeTo' # Parts specific
+        ]
         writer.writerow(headers)
-        paid_status = "YES" if self.paid_checkbox.isChecked() else "NO"
-        deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
-        deal_notes = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ')
-        writer.writerow([paid_status, self.customer_name.text().strip(), "", "", "", "", "", "", "", self.salesperson.text().strip(), datetime.now().strftime("%Y-%m-%d"), deal_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), str(uuid.uuid4()), deal_notes])
-        return csv_buffer.getvalue()
+
+        customer_name = self.customer_name.text().strip()
+        salesperson_name = self.salesperson.text().strip()
+        email_date = datetime.now().strftime("%Y-%m-%d")
+        paid_status_bool = self.paid_checkbox.isChecked()
+        deal_status_text = "Paid" if paid_status_bool else "Not Paid"
+        payment_text = "YES" if paid_status_bool else "NO"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        unique_id = str(uuid.uuid4())
+        deal_notes_text = self.deal_notes_textedit.toPlainText().strip().replace('\n', '; ')
+
+        # Regex patterns for parsing list items
+        # Equipment: "Name" (Code: CODE) STK#STOCK Order#ORDER $PRICE
+        equipment_pattern = re.compile(
+            r'"(.*?)"'  # Name (Group 1)
+            r'(?:\s+\(Code:\s*(.*?)\))?'  # Optional Code (Group 2)
+            r'\s+STK#(.*?)(?:\s+Order#(.*?))?'  # Stock (Group 3), Optional Order (Group 4)
+            r'\s+\$([\d,\.]+)'  # Price (Group 5)
+        )
+        # Trade: "Name" STK#STOCK $AMOUNT or "Name" $AMOUNT
+        trade_pattern = re.compile(
+            r'"(.*?)"'  # Name (Group 1)
+            r'(?:\s+STK#(.*?))?'  # Optional Stock (Group 2)
+            r'\s+\$([\d,\.]+)'  # Amount (Group 3)
+        )
+        # Parts: Qtyx NUMBER - NAME | Loc: LOCATION | Charge to: CHARGE_TO
+        parts_pattern = re.compile(
+            r'(\d+)x\s+'  # Quantity (Group 1)
+            r'(.*?)\s+-\s+'  # Number (Group 2)
+            r'(.*?)(?:\s*\|\s*Loc:\s*(.*?))?'  # Name (Group 3), Optional Location (Group 4)
+            r'(?:\s*\|\s*Charge to:\s*(.*?))?$'  # Optional Charge To (Group 5)
+        )
+
+        # Common deal-level data for each row
+        deal_common_data = [
+            payment_text, customer_name, salesperson_name, email_date,
+            deal_status_text, timestamp, unique_id, deal_notes_text
+        ]
+
+        multi_line_csv = self.multi_line_csv_checkbox.isChecked()
+        items_processed = 0
+
+        # Process Equipment
+        for i in range(self.equipment_list.count()):
+            item_text = self.equipment_list.item(i).text()
+            match = equipment_pattern.match(item_text)
+            if match:
+                name, code, stock, order, price_str = match.groups()
+                price = clean_numeric_string(price_str) if price_str else ""
+                row_data = deal_common_data + [
+                    "Equipment", name or "", code or "", stock or "", order or "", price or "",
+                    "", "", "" # Empty fields for parts-specific data
+                ]
+                writer.writerow(row_data)
+                items_processed += 1
+            else:
+                self.logger.warning(f"Could not parse equipment line: {item_text}")
+                if not multi_line_csv: # Add as a malformed single entry if not multi-line
+                     row_data = deal_common_data + ["Equipment", f"UNPARSED: {item_text}", "", "", "", "", "", "", ""]
+                     writer.writerow(row_data)
+                     items_processed +=1
+
+
+        # Process Trades
+        for i in range(self.trade_list.count()):
+            item_text = self.trade_list.item(i).text()
+            match = trade_pattern.match(item_text)
+            if match:
+                name, stock, amount_str = match.groups()
+                amount = clean_numeric_string(amount_str) if amount_str else ""
+                row_data = deal_common_data + [
+                    "Trade", name or "", "", stock or "", "", amount or "", # ItemCode and OrderNumber are blank for trades
+                    "", "", "" # Empty fields for parts-specific data
+                ]
+                writer.writerow(row_data)
+                items_processed += 1
+            else:
+                self.logger.warning(f"Could not parse trade line: {item_text}")
+                if not multi_line_csv:
+                    row_data = deal_common_data + ["Trade", f"UNPARSED: {item_text}", "", "", "", "", "", "", ""]
+                    writer.writerow(row_data)
+                    items_processed += 1
+
+        # Process Parts
+        for i in range(self.part_list.count()):
+            item_text = self.part_list.item(i).text()
+            match = parts_pattern.match(item_text)
+            if match:
+                qty, number, name, location, charge_to = [(g or "").strip() for g in match.groups()]
+                # For parts, price is usually not listed directly in the line item in this UI, so it's blank.
+                row_data = deal_common_data + [
+                    "Parts", name or "", number or "", "", "", "", # Stock, Order, Price are blank for parts
+                    qty or "", location or "", charge_to or ""
+                ]
+                writer.writerow(row_data)
+                items_processed += 1
+            else:
+                self.logger.warning(f"Could not parse parts line: {item_text}")
+                if not multi_line_csv:
+                    row_data = deal_common_data + ["Parts", f"UNPARSED: {item_text}", "", "", "", "", "", "", ""]
+                    writer.writerow(row_data)
+                    items_processed += 1
+
+        if not multi_line_csv and items_processed == 0:
+            self.logger.info("Multi-line CSV not checked AND no items were parsed or lists empty. Writing a single summary line for the deal.")
+            writer.writerow(deal_common_data + ["No items or unparseable", "", "", "", "", "", "", "", ""])
+            items_processed +=1 # Mark that we wrote a line
+
+        elif multi_line_csv and items_processed == 0:
+            self.logger.info("Multi-line CSV checked but no items were processed (empty lists or all failed parsing). Writing a single summary line.")
+            writer.writerow(deal_common_data + ["No items in deal", "", "", "", "", "", "", "", ""])
+            items_processed += 1 # Mark that we wrote a line
+
+
+        csv_output = csv_buffer.getvalue()
+        csv_buffer.close()
+
+        # Ensure that even if items_processed is 0 but one of the fallbacks wrote a line, we don't log it as empty.
+        # The check should be based on csv_output content.
+        if not csv_output.strip() or len(csv_output.splitlines()) <= 1 : # Check if only headers or empty
+            self.logger.warning("CSV data is empty or contains only headers after processing. This may indicate all item lists were empty.")
+        elif items_processed > 0: # Check if any data rows (parsed or fallback) were written
+             self.logger.info(f"Successfully built CSV data with {items_processed} data rows.")
+        else: # Should not be reached if logic is correct, but as a safeguard:
+            self.logger.warning("CSV data building completed, but no data rows were written and no fallback conditions met. Output might be header-only or empty.")
+
+        return csv_output
 
     def _save_as_local_csv(self, csv_data_string: str, default_dir: Optional[str] = None) -> bool:
         if not csv_data_string: self.logger.warning("No CSV data to save."); return False
